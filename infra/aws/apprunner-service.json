@@ -1,0 +1,48 @@
+{
+  "ServiceName": "nagarik-api",
+  "SourceConfiguration": {
+    "AuthenticationConfiguration": {
+      "AccessRoleArn": "arn:aws:iam::REPLACE_ME_ACCOUNT_ID:role/AppRunnerECRAccessRole"
+    },
+    "AutoDeploymentsEnabled": false,
+    "ImageRepository": {
+      "ImageIdentifier": "REPLACE_ME_ACCOUNT_ID.dkr.ecr.REPLACE_ME_REGION.amazonaws.com/nagarik-api:latest",
+      "ImageRepositoryType": "ECR",
+      "ImageConfiguration": {
+        "Port": "8000",
+        "RuntimeEnvironmentVariables": {
+          "APP_NAME": "NAGARIK API",
+          "ENVIRONMENT": "production",
+          "DEBUG": "false",
+          "API_V1_PREFIX": "/api/v1",
+          "BACKEND_CORS_ORIGINS": "",
+          "SUPABASE_STORAGE_BUCKET": "report-images",
+          "REPORT_IMAGE_SIGNED_URL_TTL_SECONDS": "3600",
+          "JWT_ALGORITHM": "HS256"
+        },
+        "RuntimeEnvironmentSecrets": {
+          "SUPABASE_URL": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-url",
+          "SUPABASE_ANON_KEY": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-anon-key",
+          "SUPABASE_SERVICE_ROLE_KEY": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-service-role-key",
+          "SUPABASE_JWT_SECRET": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-jwt-secret"
+        }
+      }
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "0.25 vCPU",
+    "Memory": "0.5 GB"
+  },
+  "HealthCheckConfiguration": {
+    "Protocol": "HTTP",
+    "Path": "/api/v1/health",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+  },
+  "Tags": [
+    { "Key": "project", "Value": "nagarik" },
+    { "Key": "environment", "Value": "production" }
+  ]
+}

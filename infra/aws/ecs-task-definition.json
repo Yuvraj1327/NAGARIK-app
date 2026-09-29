@@ -1,0 +1,64 @@
+{
+  "family": "nagarik-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::REPLACE_ME_ACCOUNT_ID:role/nagarikEcsExecutionRole",
+  "taskRoleArn": "arn:aws:iam::REPLACE_ME_ACCOUNT_ID:role/nagarikEcsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "nagarik-api",
+      "image": "REPLACE_ME_ACCOUNT_ID.dkr.ecr.REPLACE_ME_REGION.amazonaws.com/nagarik-api:latest",
+      "portMappings": [{ "containerPort": 8000, "protocol": "tcp" }],
+      "essential": true,
+      "environment": [
+        { "name": "APP_NAME", "value": "NAGARIK API" },
+        { "name": "ENVIRONMENT", "value": "production" },
+        { "name": "DEBUG", "value": "false" },
+        { "name": "API_V1_PREFIX", "value": "/api/v1" },
+        { "name": "BACKEND_CORS_ORIGINS", "value": "" },
+        { "name": "SUPABASE_STORAGE_BUCKET", "value": "report-images" },
+        { "name": "REPORT_IMAGE_SIGNED_URL_TTL_SECONDS", "value": "3600" },
+        { "name": "JWT_ALGORITHM", "value": "HS256" }
+      ],
+      "secrets": [
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-url"
+        },
+        {
+          "name": "SUPABASE_ANON_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-anon-key"
+        },
+        {
+          "name": "SUPABASE_SERVICE_ROLE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-service-role-key"
+        },
+        {
+          "name": "SUPABASE_JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:REPLACE_ME_REGION:REPLACE_ME_ACCOUNT_ID:secret:nagarik/supabase-jwt-secret"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/nagarik-api",
+          "awslogs-region": "REPLACE_ME_REGION",
+          "awslogs-stream-prefix": "nagarik-api",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}

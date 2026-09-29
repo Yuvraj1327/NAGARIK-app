@@ -1,0 +1,54 @@
+name: nagarik
+description: "NAGARIK — A Civic Good Initiative. Citizen civic issue reporting app."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # -- Supabase Auth (Flutter talks to Supabase Auth directly; see
+  #    docs/ARCHITECTURE.md for the full auth-token flow decision) --
+  supabase_flutter: ^2.8.0
+
+  # -- HTTP client for talking to the FastAPI backend --
+  dio: ^5.7.0
+
+  # -- State management --
+  flutter_riverpod: ^2.6.1
+
+  # -- Navigation --
+  go_router: ^14.6.2
+
+  # -- Environment configuration (loads mobile/.env at runtime) --
+  flutter_dotenv: ^5.2.1
+
+  # -- Value equality for simple domain models, avoids boilerplate --
+  equatable: ^2.0.7
+
+  cupertino_icons: ^1.0.8
+
+  # -- Step 6: real device location for report coordinates --
+  geolocator: ^13.0.1
+
+  # -- Step 6: real image picking (gallery + camera) for report photos --
+  image_picker: ^1.1.2
+
+  # -- Step 7: caches report photos fetched from signed Storage URLs, so the
+  #    feed/search/detail screens don't re-download the same image on every
+  #    scroll or rebuild --
+  cached_network_image: ^3.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
