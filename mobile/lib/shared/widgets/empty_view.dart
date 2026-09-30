@@ -22,6 +22,40 @@ class EmptyView extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// "You haven't submitted anything yet" (My Reports, Home's Recent
+  /// Reports section when the whole feed is empty) — one consistent copy
+  /// instead of each screen writing its own wording for the same situation
+  /// (Final Feature Polish upgrade).
+  const EmptyView.noReports({super.key, this.actionLabel, this.onAction})
+      : icon = Icons.assignment_outlined,
+        title = 'No reports yet',
+        message = 'Reports submitted here will show up in this list.';
+
+  /// Saved Reports, empty.
+  const EmptyView.noSavedReports({super.key})
+      : icon = Icons.bookmark_border,
+        title = 'No saved reports yet',
+        message = 'Tap the bookmark icon on a report to save it here for later.',
+        actionLabel = null,
+        onAction = null;
+
+  /// Home's "Nearby Issues" section when the device's location resolved but
+  /// no report was found within range.
+  const EmptyView.noNearbyReports({super.key})
+      : icon = Icons.explore_off_outlined,
+        title = 'No civic issues nearby',
+        message = 'Nothing has been reported near you recently.',
+        actionLabel = null,
+        onAction = null;
+
+  /// Search, after a search or filter combination matches nothing.
+  const EmptyView.searchNoResults({super.key})
+      : icon = Icons.search_off_outlined,
+        title = 'No matching reports',
+        message = 'Try a different keyword or loosen your filters.',
+        actionLabel = null,
+        onAction = null;
+
   @override
   Widget build(BuildContext context) {
     return Center(

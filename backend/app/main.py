@@ -33,14 +33,22 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if not settings.is_production else None,
     )
 
-    if settings.cors_origins:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=settings.cors_origins,
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+    # Always registered (previously only added `if settings.cors_origins`,
+    # which meant with no explicit origins configured — the documented
+    # default for local dev — Starlette had no CORS middleware at all, so
+    # any browser preflight `OPTIONS` request hit a plain 405 instead of a
+    # CORS response). `allow_origins` covers explicitly configured origins
+    # (e.g. a deployed web build's real domain); `allow_origin_regex`
+    # additionally accepts any localhost/127.0.0.1 port outside production,
+    # which is what Flutter's web dev server runs on.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_local_dev_origin_regex,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 

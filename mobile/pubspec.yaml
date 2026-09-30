@@ -43,6 +43,36 @@ dependencies:
   #    scroll or rebuild --
   cached_network_image: ^3.4.1
 
+  # -- Profile & Settings upgrade: persists the user's theme preference
+  #    (System Default / Light / Dark) across app restarts. The official
+  #    Flutter-team package for small key-value settings like this. --
+  shared_preferences: ^2.3.3
+
+  # -- Location Discovery & Home upgrade: the Nearby/Discovery map view. --
+  # `flutter_map` renders OpenStreetMap tiles with no API key and no native
+  # platform setup (unlike `google_maps_flutter`, which needs a billing-
+  # enabled Google Cloud API key configured per-platform) — the simplest
+  # real map for this step's "show real report coordinates on a map"
+  # requirement. `latlong2` is its required companion for the `LatLng`
+  # type; both are maintained by the flutter_map project.
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+  # -- Location Discovery & Home upgrade: turns the device's current
+  #    coordinates into a readable place name ("Bhopal") for the Home
+  #    screen's location indicator. From the same maintainers as
+  #    `geolocator` (Baseflow) and, like it, wraps the OS's own geocoder
+  #    (Android `Geocoder` / iOS `CLGeocoder`) — no API key, no new backend
+  #    call, and it's the standard package for exactly this one job. --
+  geocoding: ^3.0.0
+
+  # -- Report Sharing, Saved Reports & Final Feature Polish: the platform's
+  #    native share sheet (Android/iOS share sheet, macOS/Web share where
+  #    supported), for Report Detail's "Share" action. The standard
+  #    Flutter-team-recommended package for exactly this; pinned to the 7.x
+  #    line for its simple, stable `Share.share(text)` static API. --
+  share_plus: ^7.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -37,6 +37,19 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
 
+    # Flutter web's dev server (`flutter run -d chrome` / `-d web-server`)
+    # picks an unpredictable localhost port per run, so it can't be listed
+    # as a fixed origin in BACKEND_CORS_ORIGINS. Outside production, the API
+    # also accepts any http(s)://localhost:<port> or 127.0.0.1:<port>
+    # origin via `allow_origin_regex` (see app/main.py) so local web
+    # development works without editing .env every time the port changes.
+    # This never applies in production (see `is_production` below).
+    @property
+    def cors_local_dev_origin_regex(self) -> str | None:
+        if self.is_production:
+            return None
+        return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
     # ---- Supabase ----
     # Project URL, e.g. https://xxxxx.supabase.co
     SUPABASE_URL: str = ""

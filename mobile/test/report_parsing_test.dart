@@ -21,6 +21,7 @@ void main() {
   }) {
     return {
       'id': 'report-1',
+      'reference_id': 'NGR-2026-00001',
       'user_id': 'user-123',
       'category': 'road',
       'description': 'Large pothole near the bus stop.',
@@ -48,6 +49,7 @@ void main() {
       );
 
       expect(report.id, 'report-1');
+      expect(report.referenceId, 'NGR-2026-00001');
       expect(report.userId, 'user-123');
       expect(report.category, ReportCategory.road);
       expect(report.description, 'Large pothole near the bus stop.');

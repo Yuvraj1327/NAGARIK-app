@@ -45,6 +45,10 @@ class ApiClient {
     return _dio.post<T>(path, data: data);
   }
 
+  Future<Response<T>> delete<T>(String path) {
+    return _dio.delete<T>(path);
+  }
+
   DioException _normalize(DioException error) {
     final statusCode = error.response?.statusCode;
     final serverMessage = error.response?.data is Map

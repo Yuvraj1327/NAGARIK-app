@@ -19,19 +19,50 @@ The API is now at `http://localhost:8000`, interactive docs at
 
 ## Database migrations
 
-The `reports` feature (Step 5/6) needs two SQL migrations applied to your
-Supabase project before you can submit a report. This project does not run
-migrations automatically — apply them yourself, once, in the Supabase
-dashboard's **SQL Editor**, in order:
+The `reports` feature needs three SQL migrations applied to your Supabase
+project before `/api/v1/reports` will work — **skipping the first two is
+the #1 cause of a `PGRST205: Could not find the table 'public.reports' in
+the schema cache` error.** This project does not run migrations
+automatically — apply them yourself, once, in the Supabase dashboard's
+**SQL Editor**. See [`migrations/README.md`](migrations/README.md) for the
+full walkthrough, including how to fix `PGRST205` specifically if it shows
+up after you've already run them (usually a stale PostgREST schema cache
+or a `.env` pointed at the wrong Supabase project).
 
-1. `migrations/0001_reports.sql` — creates the `reports` table (columns,
-   check constraints, indexes, `updated_at` trigger, and RLS policies).
-2. `migrations/0002_report_images_bucket.sql` — creates the private
-   `report-images` Storage bucket and its per-user-folder RLS policies.
+The third migration, `0003_report_reference_id.sql` (My Reports & Report
+Tracking upgrade), adds every report's human-readable reference id (e.g.
+`NGR-2026-00001`) — **required** for the API to work at all once this
+step's code is deployed, since `ReportResponse` now requires
+`reference_id` on every report.
 
-Paste each file's contents into the SQL Editor and run it. Re-running them
-is not idempotent (they use `create table`/`insert into storage.buckets`),
-so only run each one once per project.
+The fourth migration, `0004_saved_reports.sql` (Report Sharing, Saved
+Reports & Final Feature Polish upgrade), adds the `saved_reports` table
+that backs bookmarking a report — **required** before `POST`/`DELETE
+/api/v1/reports/{id}/save` and `GET /api/v1/reports/saved` will work
+(without it, those three calls fail with the same `PGRST205`-style 503
+every other missing-table case does).
+
+There is no `profiles`/`users` table to migrate — `GET /api/v1/users/me`
+reads directly from the verified Supabase Auth JWT (see
+`migrations/README.md` for why).
+
+## CORS (Flutter web dev)
+
+`BACKEND_CORS_ORIGINS` in `.env` is a comma-separated allowlist for a
+**deployed** web origin, if you ever have one. You don't need to set it
+just to run `flutter run -d chrome` (or `-d web-server`) locally: outside
+`ENVIRONMENT=production`, the API also accepts any
+`http://localhost:<port>` / `http://127.0.0.1:<port>` origin automatically
+(`app/core/config.py`'s `cors_local_dev_origin_regex`), since Flutter's web
+dev server picks an unpredictable port each run. This applies to every
+request method, including the `OPTIONS` preflight a browser sends before
+its real request — previously CORS middleware was only registered `if
+settings.cors_origins` was non-empty, so with no origins configured (the
+documented default for local dev) there was no CORS middleware at all and
+every preflight got a plain `405`; it's now always registered.
+
+Android/iOS builds don't send an `Origin` header at all, so none of this
+affects them either way.
 
 ## API surface (Step 5-8)
 
@@ -44,6 +75,40 @@ so only run each one once per project.
   when `true` — the caller's own reports), `latitude` + `longitude` (both
   required together, switches to nearest-first within `radius_km`, default
   5km), `limit` (default 20, max 50), `offset`.
+- `GET /api/v1/reports/markers` — lean pin data for the mobile app's map
+  view (public, no auth required). Same filters as `GET /api/v1/reports`
+  (`category`, `status`, `city`, `pin_code`, `search`, `latitude` +
+  `longitude` + `radius_km`), but each item returns only
+  `id`, `reference_id`, `category`, `status`, `city`, `latitude`,
+  `longitude` — no `description`, no images, no signed URLs — since a map
+  may render dozens of pins and only needs enough to plot and identify each
+  one. A tapped marker's full detail is fetched separately via the existing
+  `GET /api/v1/reports/{id}`. Registered ahead of `GET /{id}` in the router
+  so the literal `/markers` path isn't shadowed by the `/{report_id}` catch-all
+  (see `docs/ARCHITECTURE.md` for the general pattern).
+
+- `GET /api/v1/reports/saved` — the caller's bookmarked reports (auth
+  required), newest save first. Same `ReportListResponse` shape/pagination
+  (`limit`, `offset`) as `GET /api/v1/reports`, so it reuses the exact same
+  report card on the mobile side. Registered ahead of `GET /{id}` for the
+  same route-shadowing reason as `/stats`/`/markers`.
+- `POST /api/v1/reports/{id}/save` — bookmark a report (auth required).
+  Returns `201` with `{"report_id": ..., "saved": true}`. Idempotent:
+  saving an already-saved report still returns `201`/`saved: true` rather
+  than erroring (duplicate saves are prevented by the `saved_reports`
+  table's own `unique (user_id, report_id)` constraint, not an
+  application-level check). `404` if the report doesn't exist.
+- `DELETE /api/v1/reports/{id}/save` — remove a bookmark (auth required).
+  Returns `204`. Idempotent: unsaving a report that was never saved (or
+  already removed) is still `204`, not `404`.
+
+Every `ReportResponse` also carries `is_saved` — whether the *caller*
+(not just anyone) has bookmarked that report. It's only computed for real
+on `GET /api/v1/reports/{id}` (auth is optional there, so it's `false` for
+signed-out visitors); plain browse/search/`markers` lists always return
+`false` for it (an extra per-row lookup nothing in a list card currently
+shows); `GET /api/v1/reports/saved` always returns `true` for it, since
+every row there is one of the caller's own saves by definition.
 
 Every response signs its own `image_urls` against the private Storage
 bucket at request time (`REPORT_IMAGE_SIGNED_URL_TTL_SECONDS` in `.env`
@@ -96,17 +161,20 @@ app/
 ├── models/               # backend-side domain models (added as needed)
 ├── schemas/              # Pydantic request/response schemas (per resource)
 └── services/
-    └── reports_service.py   # creation (Step 5/6), single/browse retrieval, search, nearby, signed URLs (Step 7/8)
+    └── reports_service.py   # creation (Step 5/6), single/browse retrieval, search, nearby, signed URLs (Step 7/8), lean markers (Location Discovery & Home upgrade)
 
 tests/
 ├── test_health.py          # liveness/readiness, incl. deterministic ok/degraded cases (Step 9)
 ├── test_users.py           # JWT verification via GET /users/me
-├── test_reports.py         # creation, retrieval, search/filter/pagination, length limits (Step 9)
+├── test_reports.py         # creation, retrieval, search/filter/pagination, length limits, stats, reference ids, markers
+├── test_saved_reports.py   # save/unsave, duplicate-prevention, per-user isolation, GET /reports/saved, is_saved (Report Sharing, Saved Reports & Final Feature Polish upgrade)
 └── test_error_handling.py  # the app-wide unhandled-exception handler (Step 9)
 
 migrations/
-├── 0001_reports.sql              # reports table, indexes, RLS (Step 5)
-└── 0002_report_images_bucket.sql # private Storage bucket + RLS (Step 6)
+├── 0001_reports.sql               # reports table, indexes, RLS (Step 5)
+├── 0002_report_images_bucket.sql  # private Storage bucket + RLS (Step 6)
+├── 0003_report_reference_id.sql   # reference_id column, per-year counter, trigger (My Reports & Report Tracking upgrade)
+└── 0004_saved_reports.sql         # saved_reports table + RLS (Report Sharing, Saved Reports & Final Feature Polish upgrade)
 ```
 
 ## Deployment

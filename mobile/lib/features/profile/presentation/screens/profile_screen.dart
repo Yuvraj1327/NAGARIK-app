@@ -2,21 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/routing/app_drawer.dart';
+import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
-import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
-import 'package:nagarik/shared/widgets/empty_view.dart';
+import 'package:nagarik/shared/widgets/app_card.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/settings_list_tile.dart';
+import 'package:nagarik/shared/widgets/settings_section.dart';
+import 'package:nagarik/shared/widgets/stat_tile.dart';
 
-/// Profile tab. Branches on real auth state (Step 3): signed out shows the
-/// login/signup prompt built in Step 2; signed in fetches and shows the
-/// user's real profile from the backend (Step 4), with loading/error
-/// handling and a "Log out" action.
+/// Profile tab. The app-wide auth gate (`core/routing/app_router.dart`)
+/// means this screen is never actually reached while signed out — but it
+/// still branches on real auth state and keeps the signed-out prompt as a
+/// defensive fallback for the brief moment between a sign-out action and
+/// the router's redirect landing.
+///
+/// Signed in: an identity header (avatar placeholder, name, email), a
+/// report-count stats strip, then four grouped, navigable sections — MY
+/// ACTIVITY, SETTINGS, LEGAL, ACCOUNT — rather than the single long
+/// scrolling page this screen used to be. The report list itself moved to
+/// its own `MyReportsScreen`, reached via "My Reports" below.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -26,6 +38,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'Profile'),
+      drawer: const AppDrawer(),
       body: user == null ? const _SignedOutView() : const _SignedInView(),
     );
   }
@@ -75,9 +88,10 @@ class _SignedInView extends ConsumerWidget {
 
     return profileAsync.when(
       loading: () => const LoadingView(message: 'Loading your profile…'),
-      error: (error, stackTrace) => ErrorView(
-        message: 'Could not load your profile. Please try again.',
+      error: (error, stackTrace) => ErrorView.forError(
+        error,
         onRetry: () => ref.invalidate(currentUserProfileProvider),
+        fallbackMessage: 'Could not load your profile. Please try again.',
       ),
       data: (profile) => ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -85,10 +99,10 @@ class _SignedInView extends ConsumerWidget {
           Row(
             children: [
               CircleAvatar(
-                radius: 28,
+                radius: 32,
                 child: Text(
                   profile.displayName.isNotEmpty ? profile.displayName[0].toUpperCase() : '?',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -96,7 +110,7 @@ class _SignedInView extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(profile.displayName, style: Theme.of(context).textTheme.titleMedium),
+                    Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
                     if (profile.email != null)
                       Text(profile.email!, style: Theme.of(context).textTheme.bodyMedium),
                   ],
@@ -105,65 +119,167 @@ class _SignedInView extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          const Divider(),
-          const SizedBox(height: AppSpacing.md),
-          Text('Your reports', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
-          const _MyReports(),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: 'Log out',
-            variant: AppButtonVariant.outlined,
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+          const _ReportStatsStrip(),
+          const SettingsSection(
+            title: 'My Activity',
+            tiles: [
+              _MyReportsTile(),
+              _SavedReportsTile(),
+            ],
           ),
+          SettingsSection(
+            title: 'Settings',
+            tiles: [
+              SettingsListTile(
+                icon: Icons.edit_outlined,
+                title: 'Edit Profile',
+                onTap: () => context.push('/profile/edit'),
+              ),
+              SettingsListTile(
+                icon: Icons.tune,
+                title: 'Preferences',
+                onTap: () => context.push('/settings'),
+              ),
+              SettingsListTile(
+                icon: Icons.help_outline,
+                title: 'Help & Support',
+                onTap: () => context.push('/help'),
+              ),
+            ],
+          ),
+          SettingsSection(
+            title: 'Legal',
+            tiles: [
+              SettingsListTile(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacy Policy',
+                onTap: () => context.push('/legal/privacy'),
+              ),
+              SettingsListTile(
+                icon: Icons.description_outlined,
+                title: 'Terms & Conditions',
+                onTap: () => context.push('/legal/terms'),
+              ),
+              SettingsListTile(
+                icon: Icons.info_outline,
+                title: 'About NAGARIK',
+                onTap: () => context.push('/about'),
+              ),
+            ],
+          ),
+          SettingsSection(
+            title: 'Account',
+            tiles: [
+              SettingsListTile(
+                icon: Icons.logout,
+                title: 'Logout',
+                isDestructive: true,
+                onTap: () => confirmAndLogout(context, ref),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
         ],
       ),
     );
   }
 }
 
-/// The signed-in user's own report history (Step 7). A small, self-
-/// contained `ConsumerWidget` rather than inlining `ref.watch` into
-/// `_SignedInView`'s `ListView` — its own loading/error/empty/data states
-/// don't have to fight with the profile header around it for layout.
-class _MyReports extends ConsumerWidget {
-  const _MyReports();
+/// Total / Resolved / In Review / Submitted counters, backed by
+/// `GET /reports/stats`. A dedicated widget so its own loading/error state
+/// doesn't block the rest of the Profile screen (the identity header and
+/// section list below render immediately regardless of whether stats have
+/// loaded yet).
+class _ReportStatsStrip extends ConsumerWidget {
+  const _ReportStatsStrip();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final myReportsAsync = ref.watch(myReportsProvider);
+    final statsAsync = ref.watch(reportStatsProvider);
 
-    return myReportsAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        child: LoadingView(),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        child: statsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: LoadingView(),
+          ),
+          error: (error, stackTrace) => ErrorView.forError(
+            error,
+            onRetry: () => ref.invalidate(reportStatsProvider),
+            fallbackMessage: 'Could not load your report stats.',
+          ),
+          data: (stats) => Row(
+            children: [
+              Expanded(child: StatTile(value: stats.total, label: 'Total\nReports')),
+              const _StatDivider(),
+              Expanded(
+                child: StatTile(
+                  value: stats.resolved,
+                  label: 'Resolved',
+                  color: AppColors.statusResolved,
+                ),
+              ),
+              const _StatDivider(),
+              Expanded(
+                child: StatTile(
+                  value: stats.inReview,
+                  label: 'In Review',
+                  color: AppColors.statusInReview,
+                ),
+              ),
+              const _StatDivider(),
+              Expanded(
+                child: StatTile(
+                  value: stats.submitted,
+                  label: 'Submitted',
+                  color: AppColors.statusSubmitted,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      error: (error, stackTrace) => ErrorView(
-        message: 'Could not load your reports.',
-        onRetry: () => ref.invalidate(myReportsProvider),
-      ),
-      data: (page) => page.items.isEmpty
-          ? const EmptyView(
-              icon: Icons.history_outlined,
-              title: 'No reports yet',
-              message: 'Reports you submit will show up here with their status.',
-            )
-          : Column(
-              children: [
-                for (final report in page.items) ...[
-                  ReportCard(
-                    title: report.category.label,
-                    description: report.description,
-                    category: report.category,
-                    status: report.status,
-                    city: report.city,
-                    pinCode: report.pinCode,
-                    onTap: () => context.push('/report/${report.id}'),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-              ],
-            ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(height: 40, child: VerticalDivider(width: AppSpacing.md));
+  }
+}
+
+class _MyReportsTile extends StatelessWidget {
+  const _MyReportsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsListTile(
+      icon: Icons.history_outlined,
+      title: 'My Reports',
+      // My Reports is now also a bottom-nav tab (`/my-reports`) — this tile
+      // just switches to that tab rather than pushing a second screen for
+      // the same feature, same as Home's category shortcuts already do for
+      // Search (`context.go` across shell branches).
+      onTap: () => context.go('/my-reports'),
+    );
+  }
+}
+
+class _SavedReportsTile extends StatelessWidget {
+  const _SavedReportsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsListTile(
+      icon: Icons.bookmark_border,
+      title: 'Saved Reports',
+      onTap: () => context.push('/profile/saved-reports'),
     );
   }
 }

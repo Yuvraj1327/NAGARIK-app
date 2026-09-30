@@ -7,6 +7,7 @@ import 'package:nagarik/core/constants/report_status.dart';
 class Report {
   const Report({
     required this.id,
+    required this.referenceId,
     required this.userId,
     required this.category,
     required this.description,
@@ -19,9 +20,18 @@ class Report {
     required this.updatedAt,
     this.latitude,
     this.longitude,
+    this.isSaved = false,
   });
 
   final String id;
+
+  /// Stable, human-readable reference (e.g. "NGR-2026-00001") — see
+  /// `backend/migrations/0003_report_reference_id.sql`. Assigned once by
+  /// the backend when the report is created and never changed afterwards,
+  /// so this is what's shown on report cards and the report detail screen
+  /// for a citizen to identify or quote a report; [id] (an opaque UUID)
+  /// stays purely an API/navigation detail.
+  final String referenceId;
   final String userId;
   final ReportCategory category;
   final String description;
@@ -39,9 +49,18 @@ class Report {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Whether the signed-in caller has bookmarked this report (Report
+  /// Sharing & Saved Reports upgrade) — never anyone else's saved state,
+  /// just the caller's own. `false` for an anonymous request or wherever
+  /// the backend doesn't bother computing it (a plain browse/search list;
+  /// see `ReportResponse.is_saved`'s docstring on the backend). Always
+  /// `true` for an item returned by `GET /reports/saved`.
+  final bool isSaved;
+
   factory Report.fromJson(Map<String, dynamic> json) {
     return Report(
       id: json['id'] as String,
+      referenceId: json['reference_id'] as String,
       userId: json['user_id'] as String,
       category: ReportCategory.values.byName(json['category'] as String),
       description: json['description'] as String,
@@ -54,6 +73,7 @@ class Report {
       status: _statusFromWire(json['status'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      isSaved: json['is_saved'] as bool? ?? false,
     );
   }
 

@@ -46,5 +46,28 @@ class AuthRepository {
     return _auth.signInWithPassword(email: email, password: password);
   }
 
+  /// Clears the local session and revokes it server-side. `signOut()` on
+  /// Supabase's own client already clears everything this app persists
+  /// (the SDK's own local storage) — there's no separate app-level cache
+  /// of the session to clear on top of that, so this is a complete logout
+  /// on its own; the router's auth gate then bounces the app back to
+  /// `/login` automatically (see `core/routing/app_router.dart`).
   Future<void> signOut() => _auth.signOut();
+
+  /// Updates the signed-in user's display name (Profile -> Edit Profile).
+  ///
+  /// Same storage as `signUp()`'s `data: {'full_name': ...}` — Supabase
+  /// Auth's `user_metadata`, not a separate `profiles` table (there isn't
+  /// one; see `docs/ARCHITECTURE.md`). `updateUser()` alone updates that
+  /// metadata but does NOT guarantee the *current* access token's embedded
+  /// `user_metadata` claim reflects it immediately — GoTrue only re-mints
+  /// the JWT on its next natural refresh, which could be up to an hour
+  /// away. Since the backend's `GET /users/me` (`app/core/security.py`)
+  /// reads `full_name` straight out of the JWT with no database round
+  /// trip, an explicit `refreshSession()` right after is what makes the
+  /// edit show up immediately instead of eventually.
+  Future<void> updateFullName(String fullName) async {
+    await _auth.updateUser(UserAttributes(data: {'full_name': fullName}));
+    await _auth.refreshSession();
+  }
 }

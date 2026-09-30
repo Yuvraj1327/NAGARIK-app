@@ -28,10 +28,29 @@ flutter test
 ```
 
 `test/` includes plain widget tests (`widget_test.dart`,
-`shared_widgets_test.dart`, `report_card_test.dart`) and pure-Dart logic
-tests with no widget pump needed (`report_parsing_test.dart`, covering
-`Report.fromJson`/`ReportsPage.fromJson`/`Report.statusToWire` — the wire
-parsing every screen depends on).
+`shared_widgets_test.dart`, `report_card_test.dart` — including the report
+reference id/thumbnail/date footer) and pure-Dart logic tests with no
+widget pump needed (`report_parsing_test.dart`, covering
+`Report.fromJson`/`ReportsPage.fromJson`/`Report.statusToWire`, including
+`reference_id`; `profile_settings_test.dart`, covering `ReportStats.fromJson`
+and the `AppThemePreference` <-> `ThemeMode` mapping; `report_timeline_test.dart`,
+covering `timelineStagesForStatus`'s mapping from a report's status onto
+the status timeline's completed/current/upcoming stages).
+
+**Location Discovery & Home upgrade:** `discovery_test.dart` covers
+`ReportMarker.fromJson` (including the unknown-status `FormatException`),
+`LocationIndicator`'s loading/data/error rendering (by overriding
+`homeLocationProvider` with `ProviderScope`), `CategoryGrid`'s tap-to-category
+callback, and `ReportMap` rendering one `Icons.location_on` pin per marker.
+
+**Report Sharing, Saved Reports & Final Feature Polish:**
+`report_share_test.dart` covers `buildReportShareText` (pure Dart: the
+NAGARIK/reference id/category/description/city/status fields are present,
+`user_id` and exact coordinates never are, and a long description is
+truncated); `error_empty_states_test.dart` covers `ErrorView.forError`'s
+network/API/fallback branches and every `EmptyView` named-constructor
+preset; `app_drawer_test.dart` pins that every item the hybrid navigation
+brief calls for is actually present in `AppDrawer`, plus its profile header.
 
 ## Project layout
 
@@ -51,38 +70,74 @@ lib/
 │   │   └── supabase_client_provider.dart # Supabase Auth init (Auth only, see docs/ARCHITECTURE.md)
 │   ├── routing/
 │   │   ├── app_router.dart               # go_router config: shell + top-level routes
-│   │   └── scaffold_with_nav_bar.dart    # bottom-nav shell (Home/Search/Profile) + Report FAB
+│   │   ├── scaffold_with_nav_bar.dart    # bottom-nav shell (Home/Search/My Reports/Profile) + Report FAB
+│   │   └── app_drawer.dart               # AppDrawer: the full feature menu, on every bottom-nav tab
 │   ├── theme/
-│   │   ├── app_colors.dart               # color palette
+│   │   ├── app_colors.dart               # color palette (light + dark tokens)
 │   │   ├── app_spacing.dart              # spacing + radius scale
-│   │   ├── app_typography.dart           # TextTheme
-│   │   └── app_theme.dart                # ThemeData combining the above
+│   │   ├── app_typography.dart           # TextTheme (light + dark)
+│   │   ├── app_theme.dart                # ThemeData: AppTheme.light + AppTheme.dark
+│   │   └── theme_preference.dart         # System/Light/Dark choice, persisted via shared_preferences
 │   └── utils/                        # empty
 ├── features/
-│   ├── auth/presentation/screens/        # login_screen.dart, signup_screen.dart (Step 3: real Supabase Auth)
-│   ├── discovery/presentation/screens/   # home_feed_screen.dart (Step 7 feed), search_screen.dart (Step 8 filters/search)
-│   ├── profile/presentation/screens/     # profile_screen.dart — profile (Step 4) + report history (Step 7)
+│   ├── auth/
+│   │   ├── data/auth_repository.dart         # signUp/signIn/signOut/updateFullName
+│   │   └── presentation/
+│   │       ├── screens/                      # login_screen.dart, signup_screen.dart
+│   │       └── widgets/confirm_logout.dart   # shared logout confirmation (Profile + Settings)
+│   ├── discovery/
+│   │   ├── domain/home_location.dart                          # current device position + reverse-geocoded city
+│   │   └── presentation/
+│   │       ├── screens/home_feed_screen.dart                  # NAGARIK header, location, Nearby Issues, category shortcuts, Recent Reports, Report CTA
+│   │       ├── screens/search_screen.dart                      # keyword/category/status/city/PIN/nearby filters + List/Map toggle
+│   │       ├── providers/discovery_providers.dart              # homeLocationProvider, nearbyReportsProvider, geocodingServiceProvider
+│   │       └── widgets/                                        # discovery_section_header.dart, location_indicator.dart, category_grid.dart
+│   ├── profile/presentation/screens/
+│   │   ├── profile_screen.dart       # identity header + stats + MY ACTIVITY/SETTINGS/LEGAL/ACCOUNT sections
+│   │   └── edit_profile_screen.dart  # editable full name (Supabase Auth user_metadata; email is read-only)
+│   ├── settings/presentation/screens/
+│   │   ├── settings_screen.dart        # account info, theme preference, help/legal/logout
+│   │   ├── help_support_screen.dart
+│   │   ├── privacy_policy_screen.dart  # placeholder copy — see file header
+│   │   ├── terms_screen.dart           # placeholder copy — see file header
+│   │   └── about_screen.dart
 │   └── reports/
 │       ├── domain/
 │       │   ├── report_draft.dart   # in-progress report form state
-│       │   ├── report.dart         # a submitted report, as the backend returns it
+│       │   ├── report.dart         # a submitted report, as the backend returns it (incl. reference_id, is_saved)
+│       │   ├── report_marker.dart  # lean pin data for the map (id/category/status/city/lat/lng only)
+│       │   ├── report_share.dart   # buildReportShareText: the plain-text message for Report Detail's Share action
+│       │   ├── report_stats.dart   # per-status counts, GET /reports/stats
+│       │   ├── report_timeline.dart # maps a ReportStatus onto the status timeline's stages
 │       │   └── reports_page.dart   # one paginated page of GET /reports results (Step 7/8)
 │       ├── data/
-│       │   ├── reports_repository.dart # submitReport / getReport / getReports (Step 5-8)
-│       │   └── location_service.dart   # geolocator wrapper (Step 6)
+│       │   ├── reports_repository.dart # submitReport / getReport / getReports / getReportMarkers / getReportStats / saveReport / unsaveReport / getSavedReports
+│       │   ├── location_service.dart   # geolocator wrapper (Step 6)
+│       │   └── geocoding_service.dart  # reverse-geocodes a position into a city name (native OS geocoder, no API key)
 │       └── presentation/
 │           ├── screens/create_report_screen.dart # Category -> Description -> Location -> Photos -> Review
-│           ├── screens/report_detail_screen.dart # full report detail, images, timestamps (Step 7)
-│           └── widgets/report_card.dart          # reusable report card (feed/search/profile/review)
+│           ├── screens/report_detail_screen.dart # full detail: reference id, city/PIN/coords, timeline, Share + Save/Unsave app-bar actions
+│           ├── screens/my_reports_screen.dart    # bottom-nav tab: My Reports (All/Submitted/In Review/Resolved chips)
+│           ├── screens/saved_reports_screen.dart # Profile/drawer -> Saved Reports (real data; swipe to remove)
+│           └── widgets/
+│               ├── report_card.dart               # reusable report card (feed/search/My Reports/Saved Reports; optional thumbnail/reference id/date)
+│               ├── report_map.dart                # OpenStreetMap-tiled map, pins colored by status (Search's Map view)
+│               └── report_marker_preview_sheet.dart # compact preview on marker tap; lazily fetches full detail, links to Report Detail
 └── shared/widgets/
-    ├── app_button.dart      # AppButton (primary/secondary/outlined/text, loading state)
-    ├── app_text_field.dart  # AppTextField
-    ├── app_card.dart        # AppCard
-    ├── status_badge.dart    # StatusBadge (colored by ReportStatus)
-    ├── primary_app_bar.dart # PrimaryAppBar
-    ├── loading_view.dart    # LoadingView
-    ├── error_view.dart      # ErrorView (message + optional Retry)
-    └── empty_view.dart      # EmptyView (icon + title + message + optional action)
+    ├── app_button.dart          # AppButton (primary/secondary/outlined/text, loading state)
+    ├── app_text_field.dart      # AppTextField
+    ├── app_card.dart            # AppCard (brightness-aware: light mode unchanged, adds dark support)
+    ├── status_badge.dart        # StatusBadge (colored by ReportStatus)
+    ├── status_timeline.dart     # StatusTimeline (vertical progress timeline, Report Detail)
+    ├── primary_app_bar.dart     # PrimaryAppBar
+    ├── loading_view.dart        # LoadingView
+    ├── error_view.dart          # ErrorView (message + optional Retry); ErrorView.forError distinguishes network vs. API errors
+    ├── empty_view.dart          # EmptyView (icon + title + message + optional action); .noReports/.noSavedReports/.noNearbyReports/.searchNoResults presets
+    ├── section_header.dart      # SectionHeader (all-caps group label)
+    ├── settings_list_tile.dart  # SettingsListTile (icon + title + trailing chevron/checkmark)
+    ├── settings_section.dart    # SettingsSection (grouped SettingsListTiles in one card)
+    ├── stat_tile.dart           # StatTile (big number + label, Profile's stats strip)
+    └── static_content_screen.dart # StaticContentScreen (shared layout for Privacy/Terms/About/Help)
 ```
 
 Each feature folder follows a light clean-architecture split
@@ -122,19 +177,42 @@ pickers in the "Photos" step of report creation will fail at runtime with a
 platform permission error even though the Dart code itself is correct —
 this is standard Flutter behavior, not a bug in this app.
 
-## Navigation
+## Navigation (hybrid bottom nav + drawer)
 
-- Bottom tabs (`StatefulShellRoute`): **Home** (`/home`), **Search**
-  (`/search`), **Profile** (`/profile`) — each keeps its own stack/scroll
-  position when switching tabs.
+- **Bottom tabs** (`StatefulShellRoute`, four only — Report Sharing, Saved
+  Reports & Final Feature Polish upgrade): **Home** (`/home`), **Search**
+  (`/search`), **My Reports** (`/my-reports`), **Profile** (`/profile`) —
+  each keeps its own stack/scroll position when switching tabs. My Reports
+  moved here from a screen previously pushed off Profile
+  (`/profile/my-reports`, now removed) — same screen and data, just
+  promoted to a primary tab; Profile's own "My Reports" tile now switches
+  tabs (`context.go('/my-reports')`) instead of pushing a second copy.
+- **App drawer** (`core/routing/app_drawer.dart`, opened via the hamburger
+  icon on each of the four tabs above): the complete feature menu — Home,
+  Search/Discover, My Reports, Saved Reports, Report Issue, Map/Nearby,
+  Settings, Help & Support, Privacy Policy, Terms & Conditions, About
+  NAGARIK, Logout. Every entry reuses an existing route (nothing here is a
+  screen built only for the drawer); "Map / Nearby" opens Search
+  pre-switched to "Near me" + the Map view (`/search?nearby=true&view=map`)
+  rather than being a screen of its own.
 - Pushed full-screen (no bottom nav): **Login** (`/login`), **Signup**
   (`/signup`), **Report an Issue** (`/report/create`), **Report Details**
-  (`/report/:id`).
-- A "Report Issue" FAB is always visible over the tabs.
+  (`/report/:id`), **Edit Profile** (`/profile/edit`), **Saved Reports**
+  (`/profile/saved-reports`), **Settings** (`/settings`), **Help & Support**
+  (`/help`), **Privacy Policy** (`/legal/privacy`), **Terms & Conditions**
+  (`/legal/terms`), **About NAGARIK** (`/about`).
+- A "Report Issue" FAB is always visible over the tabs — kept as a FAB
+  rather than a fifth bottom-nav destination, per the brief's "do not
+  overcrowd the bottom navigation."
 
-Auth-gated redirects (forcing `/login` before a protected action, e.g.
-`/report/create`) are wired in `core/routing/app_router.dart` (Step 3),
-driven by Supabase's real auth state.
+The whole app is auth-gated: every route above except `/login`/`/signup`
+requires a signed-in user, enforced by a single `redirect` callback in
+`core/routing/app_router.dart`, driven by Supabase's real auth state (its
+`onAuthStateChange` stream feeds a `refreshListenable`, so sign-in and
+sign-out both re-run the check immediately, with no extra navigation code
+at either call site). The app therefore always opens to Login/Signup for a
+signed-out user, and a "Log out" action anywhere lands back on `/login`
+automatically.
 
 ## What's real vs. deferred in this UI
 
@@ -167,6 +245,17 @@ either way (see `backend/README.md`).
 - **Image display/caching:** `cached_network_image` (Step 7) — reports'
   signed Storage URLs are loaded through this in the feed, search results,
   and report detail screen
+- **Map (Location Discovery & Home upgrade):** `flutter_map` + `latlong2` —
+  renders OpenStreetMap tiles with no API key or native platform
+  configuration, used for Search's Map view
+- **Reverse geocoding (Location Discovery & Home upgrade):** `geocoding` —
+  wraps the native OS geocoder to turn the device's current coordinates
+  into a city name ("📍 Bhopal") for Home's location indicator; no API key,
+  no new backend call
+- **Sharing (Report Sharing, Saved Reports & Final Feature Polish
+  upgrade):** `share_plus` — the platform's native share sheet for Report
+  Detail's Share action; pinned to its 7.x line for its simple, stable
+  `Share.share(text)` static API
 
 No new dependencies were needed for Step 2 — `Stepper`, `ChoiceChip`,
 `NavigationBar`, and `RefreshIndicator` are all part of the Flutter SDK.
@@ -189,5 +278,60 @@ Any combination of these can be active at once; changing a chip re-runs the
 search immediately, while the keyword/city/PIN text fields wait for an
 explicit submit so the app isn't searching on every keystroke.
 
+## Home & Location Discovery upgrade
+
+- **Home** (`home_feed_screen.dart`) now shows, top to bottom: a greeting +
+  current-location indicator, a tappable search shortcut, a horizontally
+  scrolling **Nearby Issues** section (real device GPS + backend data — no
+  mock coordinates or reports), an **Explore by Category** grid (Roads,
+  Streetlights, Sanitation, Water, Electricity, Safety, Other), a **Recent
+  Reports** list, and a **Report Issue** CTA. Each section's "See all" /
+  category tile navigates to `/search` with a query parameter
+  (`?nearby=true`, `?category=road`, `?all=true`), which `SearchScreen`
+  picks up to run the matching search automatically.
+- **Location states** — permission request, permission denied, location
+  unavailable, loading, and retry — are all just `homeLocationProvider`'s
+  `AsyncValue` (loading/data/error) rendered by `LocationIndicator`; "Retry"
+  invalidates that provider. If location fails or permission is denied, only
+  the Nearby Issues section is affected — the rest of Home (including Recent
+  Reports) keeps working normally.
+- **List/Map toggle** — once a search has run, Search shows a segmented
+  List/Map control. List renders the existing report cards. Map
+  (`ReportMap`, via `flutter_map`) plots real report coordinates as pins
+  colored by status; tapping a pin opens `ReportMarkerPreviewSheet`, a
+  compact preview that lazily fetches the full report and can push through
+  to Report Detail. Map markers come from the new lean `GET /reports/markers`
+  endpoint (id/category/status/city/coordinates only — no description or
+  images), so switching to Map doesn't pull down data the map doesn't need.
+
 See `docs/ARCHITECTURE.md` at the project root for the rationale behind the
-auth-token flow between Flutter, FastAPI, and Supabase.
+auth-token flow between Flutter, FastAPI, and Supabase, and section 17 for
+the full set of decisions behind this upgrade.
+
+## Report Sharing, Saved Reports & Final Feature Polish
+
+- **Share** — Report Detail's app bar gained a Share icon that opens the
+  platform's native share sheet with a plain-text message: NAGARIK's name,
+  the report's reference id, category, a trimmed description, city, and
+  status. Deliberately excludes anything that could identify or locate
+  whoever filed the report (no `user_id`, no exact GPS coordinates).
+- **Save/Unsave** — Report Detail's app bar also gained a bookmark
+  icon (outline = not saved, filled = saved) backed by real
+  `POST`/`DELETE /reports/{id}/save` calls. Saving/unsaving is idempotent
+  on the backend, so the button never needs to check state before acting.
+  **Saved Reports** (Profile -> My Activity -> Saved Reports, also in the
+  app drawer) now lists real bookmarked reports via `GET /reports/saved`,
+  using the same `ReportCard` as every other list, with swipe-to-remove.
+- **Error states** — `ErrorView.forError(error, ...)` distinguishes a
+  network failure (no response reached the server) from a server-returned
+  error, with a different icon and message for each, used across Report
+  Detail, My Reports, Saved Reports, Search, Profile, Edit Profile, and
+  Settings.
+- **Empty states** — `EmptyView.noReports()`, `.noSavedReports()`,
+  `.noNearbyReports()`, and `.searchNoResults()` give each of those
+  situations one consistent icon/title/message instead of every screen
+  writing its own.
+- **Navigation** — see "Navigation (hybrid bottom nav + drawer)" above.
+
+See `docs/ARCHITECTURE.md` section 18 for the full set of decisions behind
+this upgrade, including why each backend addition was (or wasn't) needed.

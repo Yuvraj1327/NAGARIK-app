@@ -470,3 +470,616 @@ backend test suite (36 tests) and `ruff check` were re-run against a fresh
 virtualenv and both pass, confirming Step 9's hardening work is undisturbed
 by Step 10's additions (which touched only `infra/`, `.github/`, and
 documentation — no application code).
+
+## 14. Post-Step-10 fixes: hard auth gate, Supabase schema errors, and CORS
+
+Three issues reported after Step 10 (an unauthenticated app shell, a
+Supabase `PGRST205` error on `/api/v1/reports`, and browser preflight
+requests returning `405`) turned out to be three independent problems, not
+one — each is described here with what was actually wrong and why the fix
+is what it is.
+
+**1. Auth gate (`mobile/lib/core/routing/app_router.dart`).** Since Step 3,
+only `/report/create` bounced a signed-out user to `/login`; Home, Search,
+and Profile were always reachable (Profile branched on auth state
+internally rather than being gated by the router). This is a deliberate
+change in direction, not a bug fix: the router's `redirect` callback now
+gates *every* route except `/login`/`/signup` themselves —
+`if (!isLoggedIn && !isGoingToAuth) return '/login';` — so the app opens
+straight to Login/Signup and nothing else is reachable without a session.
+Signing in (or up) continues straight on to `/home` automatically, the
+same as before, via the existing `refreshListenable`/`GoRouterRefreshStream`
+wiring off Supabase's own auth-state stream — no new navigation code
+needed for that direction, and none needed for sign-out either: signing
+out fires the same stream, and the very next redirect check finds
+`isLoggedIn == false` on a non-auth route and sends the user back to
+`/login` from wherever they were.
+
+This does **not** change what the backend API itself requires — `GET
+/api/v1/reports` and `GET /api/v1/reports/{id}` are still optional-auth at
+the HTTP layer (see the updated docstring in
+`app/api/v1/endpoints/reports.py`). The distinction is deliberate: the
+*app's* screens are now fully gated, but the *API* stays open for a
+possible future non-app client (a public read-only website, an open-data
+export) without needing to touch backend auth to get there — today, in
+practice, every call to those endpoints comes from an already-signed-in
+app session anyway, since there's no way to reach the screens that call
+them without one.
+
+**2. `PGRST205: Could not find the table 'public.reports' in the schema
+cache'`.** This is Supabase/PostgREST's error for "this table doesn't
+exist in what I have cached" — inspecting `backend/migrations/0001_reports.sql`
+and `0002_report_images_bucket.sql` found nothing wrong with the SQL
+itself (both were already correct and already idempotent, contrary to
+what `backend/README.md` used to claim — that claim is now fixed too).
+The actual problem is operational, not a code bug: **this backend has no
+way to run DDL against your Supabase project on its own** (documented in
+the migration files' own header comments since Step 5) — it only holds
+your service-role key at runtime for ordinary queries. If the SQL in
+`backend/migrations/` was never pasted into the Supabase SQL Editor and
+run (or was run against a different project than the one `SUPABASE_URL`
+now points at, or ran but the PostgREST schema cache hasn't reloaded
+since), every reports query fails with exactly this error. New
+`backend/migrations/README.md` walks through applying both files and
+specifically troubleshooting `PGRST205` (checking Table Editor, forcing a
+schema-cache reload, checking for a mismatched project URL).
+
+Since this class of error is also easy to run into again in normal
+operation (a fresh Supabase project the migrations haven't been applied to
+yet, or a stale cache right after applying them), `reports_service.py`
+now catches it specifically: `_raise_for_supabase_error` inspects the
+Supabase/PostgREST exception's `.code` for `PGRST205`/`PGRST204`/`PGRST202`
+(table/column/function not found in schema cache) or `42P01` (Postgres'
+own "undefined_table"), and returns a `503` naming the real cause and
+pointing at the migrations, instead of the generic "failed, try again"
+`502`/`500` a retry can't actually fix. Covered by six new tests in
+`tests/test_reports.py` (insert, single-fetch, plain browse, and the
+nearby-search branch, which runs a different query chain) using a new
+`_FakeAPIError` that mimics the real `postgrest.exceptions.APIError`
+shape (confirmed by installing `supabase==2.11.0` into a scratch venv and
+reading `postgrest.exceptions.APIError`'s source directly — it's a plain
+`Exception` subclass with `.code`/`.message`/`.hint`/`.details` set from
+the response body).
+
+**3. CORS preflight `OPTIONS` returning `405`.** Root cause:
+`app/main.py` only called `app.add_middleware(CORSMiddleware, ...)` `if
+settings.cors_origins` — and the documented default for local dev
+(`BACKEND_CORS_ORIGINS` left empty in `.env.example`) is exactly the case
+where that's false. With no CORS middleware registered at all, Starlette
+has no handler for a bare `OPTIONS` request on a route that only declares
+`GET`/`POST`, so it fell through to its default "method not allowed" `405`
+— confirmed by reading Starlette's actual `CORSMiddleware` source (a
+correctly-configured-but-*rejecting* preflight returns `400` with an
+explanatory body, never `405`; `405` only happens with no CORS middleware
+in the stack at all).
+
+The fix has two parts:
+- `CORSMiddleware` is now **always** registered (`app/main.py`), so a
+  preflight always gets a real CORS decision instead of falling through to
+  Starlette's default.
+- Flutter's web dev server (`flutter run -d chrome` / `-d web-server`)
+  binds a different, unpredictable `localhost` port on every run, so it
+  can't be listed as a fixed origin in `BACKEND_CORS_ORIGINS` the way a
+  real deployed domain can. `Settings.cors_local_dev_origin_regex`
+  (`app/core/config.py`) adds `allow_origin_regex` matching any
+  `http(s)://localhost:<port>` or `127.0.0.1:<port>` origin, but **only
+  outside `ENVIRONMENT=production`** — production still requires an
+  explicit entry in `BACKEND_CORS_ORIGINS`, same as before. Native
+  Android/iOS builds don't send an `Origin` header at all, so none of this
+  affects them either way — this was always and only a web-dev-server
+  problem.
+
+Five new tests in `tests/test_cors.py` cover: a `localhost`/`127.0.0.1`
+preflight is allowed in local dev, an arbitrary unconfigured origin is
+rejected with something other than `405`, the `localhost` auto-allow does
+*not* apply once `ENVIRONMENT=production`, and an explicitly configured
+production origin still works. Because `CORSMiddleware` is configured
+once inside `create_app()` from whatever `get_settings()` returns at that
+moment — not re-resolved per request the way a route's
+`Depends(get_settings)` is — the production-environment tests build a
+fresh app with `create_app()` under a monkeypatched `get_settings` rather
+than using `app.dependency_overrides` (which has no effect on middleware
+already constructed at app-creation time).
+
+**Verification:** full backend suite is 45 tests, all passing
+(`pytest`), `ruff check` clean. The Dart changes (`app_router.dart`,
+`profile_screen.dart`) were checked with the same brace/import-resolution
+script used throughout this project in place of `flutter analyze` (no
+Flutter SDK in this environment — see `mobile/README.md`); real
+`flutter analyze`/`flutter test` runs happen the first time
+`mobile-ci.yml` (Step 10) runs in CI.
+
+## 15. Profile & Settings upgrade
+
+A full rework of the Profile tab plus a new dedicated Settings screen.
+Backend changes were kept to the one thing that actually needed a database
+query (report counts); everything else reuses what already existed.
+
+**New backend: `GET /reports/stats`.** The Profile screen's four stat
+tiles (Total / Resolved / In Review / Submitted) need per-status counts of
+the caller's own reports — nothing existing returned that, so
+`reports_service.get_report_stats()` fetches just the `status` column for
+the caller's rows and counts them in Python, the same trade-off already
+made for "nearby" search (`STATS_SCAN_LIMIT` is a generous safety cap, not
+a real limitation — see its comment). **Route ordering matters here**: the
+new `GET /reports/stats` is registered *before* `GET /{report_id}` in
+`app/api/v1/endpoints/reports.py`, because both are a bare `GET` one path
+segment past `/reports`, and FastAPI/Starlette matches routes in
+registration order — declared the other way round, `/reports/stats` would
+be swallowed by `/{report_id}` with `report_id="stats"`. A regression test
+(`test_report_stats_route_does_not_shadow_get_report_detail`) pins this.
+Reuses `_raise_for_supabase_error` from the CORS/schema-errors fix, so a
+missing-table error here gets the same clear `503` as everywhere else.
+**No migration needed** — this reads the existing `reports` table's
+`status` column, nothing new to create.
+
+**Edit Profile updates Supabase Auth directly — no new `profiles` table,
+no new backend endpoint.** This app's only mutable, DB-backed profile field
+is `full_name`, which has lived in Supabase Auth's `user_metadata` since
+Step 3 (`GET /users/me` already reads it straight from the JWT, no
+database round-trip). Adding a `profiles` table just to hold one field
+Supabase Auth already stores would be a duplicate system for the same
+data — exactly what the project brief says to avoid. `AuthRepository.
+updateFullName()` calls `updateUser(UserAttributes(data: {...}))` on the
+Supabase client directly, the same client the app already talks to for
+sign-in/sign-up.
+
+**A subtlety worth flagging: `updateUser()` alone doesn't make the change
+visible immediately.** Supabase embeds `user_metadata` in the JWT at
+token-mint time; `updateUser()` updates the stored value but doesn't
+proactively re-mint the *current* access token — that only happens on its
+next natural refresh (which could be up to an hour away). Since the
+backend's `GET /users/me` reads `full_name` straight out of the JWT,
+without an explicit refresh the Profile screen would keep showing the old
+name for up to that long after a successful edit. `updateFullName()`
+therefore calls `refreshSession()` immediately afterward, forcing a new
+JWT that embeds the just-updated metadata. The registered email is
+intentionally read-only in `EditProfileScreen` — changing it requires
+Supabase's own email-confirmation flow, which is a separate, larger
+feature than this step's "edit appropriate profile information" scope.
+
+**Saved Reports is a real screen with a stub data path, not a fake one.**
+There is no `saved_reports` table and no save/unsave endpoint yet — this
+step only prepares the navigation (`/profile/saved-reports`) and the
+repository seam (`ReportsRepository.getSavedReports()`), which always
+returns an empty page today. The screen's empty state ("Saved reports
+coming soon") is therefore accurate rather than a spinner that never
+resolves or a broken call to an endpoint that doesn't exist. A later step
+adding real saving needs: a `saved_reports(user_id, report_id)` join table
++ migration, `POST`/`DELETE` endpoints, a "Save" action on the report
+detail screen, and swapping `getSavedReports()`'s stub for a real call.
+
+**Dark mode was added deliberately narrowly.** Most of this app's shared
+widgets already read colors from `Theme.of(context)` (buttons, text
+fields, scaffolds), so `AppTheme.dark` "just works" for them once it
+exists. The one widget that didn't was `AppCard` — it hardcoded
+`AppColors.surface`/`AppColors.border` (pure white / light gray)
+regardless of theme, which would make every card in the app unreadable in
+dark mode (light text from the new dark `TextTheme` on a white card).
+Rather than switching it to `Theme.of(context).colorScheme.surface` (which
+would also have subtly shifted *light* mode's appearance — Material 3's
+seeded surface color is a faint tint, not pure white, and light mode is
+supposed to stay pixel-identical to what it already was), `AppCard` now
+branches on `Theme.of(context).brightness` and picks between the existing
+light constants and new dark ones. Icon-only colors elsewhere
+(`EmptyView`'s disabled-gray icon, `ErrorView`'s red icon, `StatusBadge`'s
+status colors) were left as-is — they're mid-tone/saturated enough to
+stay legible on a dark background without needing the same treatment.
+
+**Theme preference defaults to Light, not System.** The project brief is
+explicit that light stays the primary/default visual design; defaulting a
+fresh install to "System Default" would mean a phone in dark mode never
+sees that design until the user finds the setting and changes it. Stored
+via `shared_preferences` (a new, minimal dependency — the standard
+Flutter-team package for exactly this) so the choice survives app
+restarts; read/write failures fall back to the in-memory value rather than
+crashing over a non-critical setting.
+
+**Layout reuse.** Four new shared widgets — `SectionHeader`,
+`SettingsListTile`, `SettingsSection`, `StatTile` — are what both the
+Profile screen's four grouped sections and the Settings screen's grouped
+rows are built from, so "MY ACTIVITY"/"SETTINGS"/"LEGAL"/"ACCOUNT" and
+Settings' own groups look identical without either screen re-specifying
+card/divider/spacing details. `StaticContentScreen` does the same for the
+four long-form text screens (Privacy Policy, Terms & Conditions, About
+NAGARIK, Help & Support) — each of those files is just its content, not
+layout code.
+
+**Privacy Policy / Terms & Conditions copy is a placeholder**, written to
+be factually accurate to what this app actually does (Supabase Auth
+accounts, the `reports` table, a private Storage bucket, no data sold to
+third parties) but explicitly **not** reviewed legal text — replace it
+before a real release, same as any other template legal copy.
+
+**New test coverage:** backend — `test_report_stats_requires_authentication`,
+`test_report_stats_counts_only_the_callers_own_reports_by_status`,
+`test_report_stats_is_all_zero_for_a_user_with_no_reports`,
+`test_report_stats_returns_503_when_reports_table_is_missing`,
+`test_report_stats_route_does_not_shadow_get_report_detail` (all in
+`tests/test_reports.py`). Mobile — `test/profile_settings_test.dart`
+covers `ReportStats.fromJson`, the `AppThemePreference` <-> `ThemeMode`
+mapping, and `UserProfile.displayName`'s fallback chain.
+
+## 16. My Reports & Report Tracking upgrade
+
+Every report now has a stable, human-readable reference id (e.g.
+`NGR-2026-00001`), My Reports gained status tabs and richer cards, and
+Report Detail gained a visual status timeline. One new migration; no new
+tables, no new endpoints.
+
+**Reference ids are assigned by a database trigger, not by this backend's
+Python code.** `backend/migrations/0003_report_reference_id.sql` adds a
+`reference_id` column plus a `BEFORE INSERT` trigger that fills it in from
+a small `report_reference_counters(year, last_value)` table — one row per
+calendar year, so the number resets to `00001` each January. The counter
+increment and the id assignment happen inside a single
+`INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING` statement, which
+Postgres executes atomically; two citizens submitting a report at the same
+instant still get two different, correctly-ordered numbers, with no
+"read the counter, then write it back" gap a race condition could land in.
+Doing this with a trigger (not, say, counting existing rows in
+`create_report()` before inserting) was the deliberate choice, for the same
+reason the project already uses one for `updated_at`: a trigger is
+transactional with the insert itself, and Python-side counting would be
+racy under concurrent submissions. The trigger only fills in `reference_id`
+when it's still null and never runs on `UPDATE`, which is what makes the
+id **stable after creation** — nothing in this schema, including a future
+status-transition feature, can change it once assigned. Existing rows (if
+any) are backfilled by the same migration, in `created_at` order, using the
+same per-year counter, so backfilled and newly-created ids share one
+continuous sequence. A unique index (`reports_reference_id_key`) enforces
+uniqueness and doubles as the lookup index. **Run
+`0003_report_reference_id.sql` before using this feature** — the
+`ReportResponse` schema now requires `reference_id` on every report, so an
+un-migrated database would fail every `/reports` response with a Pydantic
+validation error, the same way a missing `reports` table itself would.
+
+**The reference id is a display/identification field, not a routing key.**
+Navigation (`/report/:id`) still uses the internal UUID, unchanged — adding
+a second way to look up a report by `reference_id` wasn't asked for and
+isn't needed for this step's goals (showing citizens a stable id they can
+read, save, or quote), so it wasn't built, in line with not introducing
+duplicate systems for the same job.
+
+**The status timeline shows three stages, not the four in the original
+design sketch, and that's a deliberate call, not an oversight.** The
+requested visual was Report Submitted -> Under Review -> Action Taken ->
+Resolved, but `ReportStatus` (backend and mobile) only has three values:
+`submitted`, `in_review`, `resolved` — there is no `action_taken` status
+anywhere in the schema. A fourth "Action Taken" stage on screen would
+either sit permanently unlit for every report (implying a step that no
+report can ever actually reach) or have to be marked complete at the exact
+same moment as "Resolved" with no real timestamp or data behind it —
+exactly the "don't invent fake status history" the brief warned against.
+`mobile/lib/features/reports/domain/report_timeline.dart`'s
+`timelineStagesForStatus()` maps a `ReportStatus` onto exactly the three
+real stages instead. This is built to extend cleanly, per the brief's own
+"structure the UI so additional stages can be supported later": `
+StatusTimeline` (the widget) and `TimelineStage`/`TimelineStageState` (the
+data it's driven by) already accept an arbitrary ordered list of stages —
+the day the backend adds a genuine intermediate status, only
+`timelineStagesForStatus()` needs to change to insert it; no widget or
+screen needs touching.
+
+**My Reports filters client-side against one fetch, not one API call per
+tab.** `myReportsProvider` now requests up to the backend's `MAX_PAGE_SIZE`
+(50, up from 20) in a single `GET /reports?mine=true` call; the All/
+Submitted/In Review/Resolved chip row (reusing the same `ChoiceChip`
+pattern the Search tab already established for status filtering, rather
+than introducing a new tab-bar paradigm) filters that one result in Dart
+and shows a live count per chip. This means switching tabs is instant and
+costs no extra network round trip, at the cost of only surfacing a user's
+most recent 50 reports — not a realistic limit for a civic-reporting app,
+and `ReportsPage.hasMore` already carries what a future "load more" would
+need if it ever becomes one. User isolation itself is unchanged and was
+already correct: `GET /reports?mine=true` requires authentication and is
+filtered server-side by the caller's own `user_id`
+(`test_browse_reports_mine_returns_only_the_callers_reports` and the new
+`test_browse_reports_mine_does_not_leak_another_users_reference_id` both
+pin this).
+
+**Report cards gained an optional thumbnail, reference id, and date
+footer** (`ReportCard`'s `imageUrl`/`referenceId`/`date` parameters, all
+nullable) — used everywhere a real `Report` is available (Home feed,
+Search, My Reports) so the reference id requirement ("displayed across
+report cards and report details") is met consistently rather than only on
+one screen. The create-report review step's card intentionally leaves all
+three null: a draft has no reference id (none is assigned until the report
+actually exists), no signed image URL yet, and no creation date yet.
+
+**Report Detail** now shows the reference id (next to the category, always
+visible without scrolling), City and PIN code as their own rows (previously
+combined into one "Location" row), an always-shown "Updated" row (previously
+only shown when it differed from "Created"), and the status timeline at the
+bottom under a reused `SectionHeader`.
+
+**No Supabase migration is needed beyond `0003_report_reference_id.sql`** —
+everything else in this step (the tab filter, the card footer, the
+timeline) is presentation logic over data the API already returns.
+
+**New test coverage:** backend —
+`test_submit_report_response_includes_a_well_formed_reference_id`,
+`test_submitting_two_reports_gives_each_a_different_reference_id`,
+`test_get_report_detail_includes_the_reference_id`,
+`test_browse_reports_includes_reference_id_for_every_item`,
+`test_browse_reports_mine_does_not_leak_another_users_reference_id` (all in
+`tests/test_reports.py`; `_FakeTable`/`_make_report_row` were updated to
+simulate the reference-id trigger so every existing test kept working
+unchanged). Mobile — `test/report_timeline_test.dart` covers
+`timelineStagesForStatus` for every status; `test/report_card_test.dart`
+gained cases for the new footer and thumbnail; `test/report_parsing_test.dart`
+now asserts `Report.fromJson` parses `reference_id`.
+
+## 17. Location Discovery & Home Experience upgrade
+
+Home is no longer just a plain recent-reports feed: it gained a location
+indicator, a "Nearby Issues" section using real device GPS, category
+shortcuts, and a "Recent Reports" section — and Search gained a List/Map
+toggle. No new tables; one new lean backend endpoint.
+
+**A new endpoint exists only because markers need a fundamentally different
+payload shape, not different filtering.** `GET /reports/markers` reuses
+exactly the same filter semantics as `GET /reports` (category, status,
+city, pin_code, search, nearby) — both now call a shared
+`_build_reports_query()` / `_nearby_filter_and_sort()` extracted from the
+original `list_reports()` — but requests only
+`id,reference_id,category,status,city,latitude,longitude` from Postgres via
+the `select()` column list itself, not `"*"` filtered down in Python
+afterward. A map may render dozens of pins; none of them need a
+description or a signed image URL until the citizen actually taps one, at
+which point the existing `GET /reports/{report_id}` (which My Reports and
+Search already use) fetches the full record lazily. This is the concrete
+form "do not load unnecessary report fields/images for map markers" takes.
+Registered before `GET /{report_id}` for the same route-ordering reason as
+`/reports/stats` in section 15 — pinned by
+`test_report_markers_route_does_not_shadow_get_report_detail`.
+
+**flutter_map (OpenStreetMap tiles), not google_maps_flutter.** The brief
+asks for real report coordinates shown on a map — nothing about Google's
+specific styling or Places integration. `google_maps_flutter` would require
+a billing-enabled Google Cloud API key plus native Android/iOS manifest
+configuration this project doesn't otherwise need; `flutter_map` renders
+OSM tiles with neither. Chosen specifically to avoid imposing setup burden
+the brief didn't ask for. Production traffic should review OpenStreetMap's
+tile-usage policy (a custom `userAgentPackageName` is already set, as OSM's
+policy requires) and consider a paid tile provider if usage grows —
+noted here as a known follow-up, not a blocker for this step.
+
+**The `geocoding` package turns coordinates into "📍 Bhopal" client-side —
+no new backend surface.** `GeocodingService.cityFromCoordinates()` wraps
+the native OS geocoder (Android `Geocoder`/iOS `CLGeocoder`, the same
+mechanism `geolocator`'s maintainers publish this package for) and returns
+`null` on any failure rather than throwing — reverse-geocoding is a nicety
+layered on top of a real position, not something the location experience
+should be able to fail over. If it returns `null`, the UI still has the
+real position and simply doesn't show a city name.
+
+**Five location UI states (permission request / denied / unavailable /
+loading / retry) needed no new state-machine class.** `LocationService`
+(built in Step 6) already throws a `LocationException` carrying a
+directly-showable message for every failure mode. `homeLocationProvider`
+is a plain Riverpod `FutureProvider`, so its `AsyncValue.loading/data/error`
+*is* the state machine the brief asked for, and "Retry" is just
+`ref.invalidate(homeLocationProvider)`. Avoided per "do not create
+unnecessary business logic just for decoration."
+
+**"If location permission is unavailable, the normal feed should still
+work" is structural, not a guard clause.** Home's "Recent Reports"
+(`homeFeedProvider`, unchanged since Step 7) has zero dependency on
+`homeLocationProvider`. "Nearby Issues" (`nearbyReportsProvider`) is the
+only section that awaits `homeLocationProvider.future`; if that rejects,
+only the Nearby section shows a compact inline error with its own retry —
+Home's greeting, search shortcut, category grid, recent reports, and
+report CTA all render normally regardless.
+
+**The List/Map toggle lives on the Search screen, not a new "Nearby"
+screen.** Search is already the one screen that unifies nearby, city-wise,
+and PIN-code-wise discovery against the same backend filters (Step 7/8).
+Home's "Nearby Issues" → "See all", category tiles, and "Recent Reports" →
+"See all" all navigate to `/search` with a query param
+(`?nearby=true`, `?category=road`, `?all=true`), parsed once in
+`app_router.dart` into `SearchScreen`'s constructor and run automatically
+on first frame — reusing Search's existing filter/result pipeline entirely
+instead of duplicating it for a second screen, per the same
+"don't build unnecessary business logic" instruction.
+
+**Switching List↔Map fetches only the newly-selected shape, once.**
+`SearchScreen` holds `_resultsFuture` (`getReports`, full `Report` objects
+for cards) and `_markersFuture` (`getReportMarkers`, lean pins) separately;
+selecting a view re-fetches only if that view hasn't been fetched for the
+current filters yet — never both eagerly, never re-fetched on every
+rebuild.
+
+**No Supabase migration needed.** This step is entirely additive on top of
+the `reports` table's existing `latitude`/`longitude` columns (Step 6) —
+same coordinates already used for `GET /reports?latitude=&longitude=`'s
+nearby search, now also served through the new lean marker shape.
+
+**Bottom navigation is unchanged**, per explicit instruction —
+`scaffold_with_nav_bar.dart` was inspected but not modified; Home's new
+in-body "Report Issue" button is additive to the always-visible FAB, not a
+replacement for it.
+
+**New test coverage:** backend — 8 new tests in `tests/test_reports.py`
+covering the route-shadow regression, lean-fields-only assertion (no
+`description`/`image_paths` keys in the response), coordinates-required
+filtering, category filtering, nearby-radius filtering, the 400 on
+mismatched lat/long, the 503 on a missing table, and no-auth-required
+(63 total, all passing; `ruff check` clean). Mobile —
+`test/discovery_test.dart` covers `ReportMarker.fromJson` (including the
+unknown-status `FormatException`), `LocationIndicator`'s success and error
+`AsyncValue` states (via `homeLocationProvider.overrideWith`), `CategoryGrid`
+tap routing, and `ReportMap` rendering one pin per marker.
+
+## 18. Report Sharing, Saved Reports & Final Feature Polish
+
+Report Detail gained native Share and Save/Unsave actions, Saved Reports is
+now backed by a real table and endpoints instead of an always-empty stub,
+error/empty states were consolidated into reusable presets, and the app's
+navigation moved from three flat tabs to a hybrid bottom-nav-plus-drawer
+structure. One new migration; three new endpoints; no other schema changes.
+
+**Share is a plain-text message built entirely client-side — no new
+backend endpoint.** There's nothing to look up or compute server-side that
+`GET /reports/{id}` doesn't already return, so `buildReportShareText()`
+(`mobile/lib/features/reports/domain/report_share.dart`) is a pure function
+over a `Report` already in memory, invoked from Report Detail's app-bar
+Share icon via `share_plus`'s `Share.share()` (the platform share sheet —
+Android/iOS's native sheet, with web/desktop fallbacks `share_plus` itself
+provides). It deliberately includes only NAGARIK's name, the reference id,
+category, a trimmed description, city, and status — never `user_id`, exact
+GPS coordinates, or anything else that could identify or locate whoever
+filed the report, per the brief's "do not expose private user information."
+`share_plus` is pinned to its 7.x line specifically for its simple, stable
+static `Share.share(text)` API (later majors moved to a `SharePlus.instance`
+builder API); either works, 7.x just needed no call-site changes to add.
+
+**Saved Reports needed exactly one new table.** `backend/migrations/
+0004_saved_reports.sql` adds `saved_reports(user_id, report_id)` with a
+`unique (user_id, report_id)` constraint — that constraint *is* the
+duplicate-save guard the brief asks for ("duplicate saves must be
+prevented"), not application-level logic re-checking before every insert.
+`save_report()` (`reports_service.py`) catches the resulting Postgres
+`23505` and treats it as success rather than an error: saving an
+already-saved report should end up in the same state either way, so the
+second attempt isn't a failure from the caller's point of view. A
+`report_id` that doesn't exist trips the table's foreign key constraint
+(`23503`) instead, which *is* a real error, surfaced as the same 404
+`GET /reports/{id}` already gives for a bad id. RLS policies scope
+select/insert/delete to `auth.uid() = user_id`, the same defense-in-depth
+posture as every other table — "users can only manage their own saved
+records" is actually enforced by the backend's own `user_id = current_user.id`
+filtering on every saved-reports call (all three require
+`Depends(get_current_user)`), with RLS as a second line of defense if this
+table is ever queried outside the service-role client.
+
+**`GET /reports/saved` returns full reports, not just saved rows.**
+`saved_reports` only stores the `(user_id, report_id)` pair; the endpoint
+fetches the matching `reports` rows in a second query
+(`.in_("id", [...])`) so the response is an ordinary `ReportListResponse` —
+the same shape, and the same `ReportCard` widget, that Home/Search/My
+Reports already use. This is what "Report Card Polish" meant for Saved
+Reports in practice: there was no separate saved-report card to build,
+because the existing card already renders every field the brief asked for
+(image, category, short text, location, status, reference id, date) — the
+work was making sure Saved Reports actually populates one, not designing a
+new one. Its one addition, a swipe-to-remove `Dismissible` per card, is
+scoped to that screen rather than added to the shared `ReportCard` itself,
+since "remove from saved" is a saved-reports-specific action, not something
+Home or Search's cards need.
+
+**`is_saved` is computed for real in exactly one place: `GET /reports/{id}`.**
+It's a new field on `ReportResponse`, defaulting to `false`. A plain browse/
+search list (`GET /reports`) leaves it at that default rather than joining
+against `saved_reports` for every row — no card outside Report Detail shows
+a saved indicator, so computing it there would be a real per-row query cost
+for a value nothing reads. `GET /reports/saved` sets it to `true` directly
+(true by definition, no query needed). `GET /reports/{id}` is the one
+endpoint whose caller — Report Detail's Save/Unsave button — actually needs
+to know the current caller's own saved state, so it alone calls
+`_is_report_saved()`, using `get_optional_current_user` (not
+`get_current_user`) so the endpoint stays public for an anonymous viewer
+(who simply always sees `is_saved: false`, same as before this field
+existed). The Flutter app never reaches this screen signed out anyway (the
+router gates every screen), but the API itself stays exactly as public as
+it already was.
+
+**Save/Unsave re-fetches rather than updating state optimistically.** After
+a successful save or unsave, `report_detail_screen.dart` invalidates both
+`reportByIdProvider(id)` and `savedReportsProvider` and lets them refetch,
+rather than flipping a local `isSaved` flag immediately. One extra request
+for a tap this infrequent is a fair trade for the saved state shown always
+being what the backend actually confirmed, not what the UI assumed would
+happen.
+
+**Network vs. API errors are now visually distinct, in one place.**
+`ErrorView.forError(error, ...)` (`shared/widgets/error_view.dart`) is a
+factory that inspects the caught error: `ApiException.isNetworkError`
+(true when `ApiClient`'s Dio interceptor never got a response at all —
+no connectivity, DNS failure, timeout) gets a "check your connection" copy
+and a Wi-Fi-off icon; any other `ApiException` shows the backend's own
+message (already human-readable — a 404's "Report not found.", a 503's
+migration-pointing message, etc.) with a generic cloud-off icon; anything
+else falls back to a caller-supplied message. Screens that previously
+constructed `ErrorView` with a hand-written, one-size-fits-all message
+(Report Detail, My Reports, Saved Reports, Search, Profile, Edit Profile,
+Settings) now pass the actual caught error through this factory instead —
+one factory function is what makes "API error" and "Network error" a
+real, consistent distinction app-wide rather than a state each screen would
+otherwise have to detect and word on its own.
+
+**Reusable empty states are named constructors on the existing `EmptyView`,
+not a new widget.** `EmptyView.noReports()`, `.noSavedReports()`,
+`.noNearbyReports()`, and `.searchNoResults()` each fix one screen
+situation's icon/title/message in one place (`shared/widgets/
+empty_view.dart`) instead of every call site re-writing similar copy —
+`EmptyView` itself is unchanged, these are just presets over its existing
+fields. `.noReports()` also accepts an optional `actionLabel`/`onAction`,
+used by Home's "Recent Reports" empty state to offer "Report an Issue"
+directly (reusing the existing `/report/create` route) rather than a dead
+end. A couple of situations stayed intentionally custom rather than reusing
+a preset — My Reports' filtered-empty-tab message and Search's map-specific
+"no matching reports to show on the map" — because their wording depends on
+context a shared preset can't express without becoming vaguer for every
+other caller.
+
+**Hybrid navigation: four bottom-nav tabs, everything else in one drawer.**
+Per the brief, the bottom bar was reduced to Home, Search, **My Reports**,
+and Profile — My Reports moved here from a screen previously pushed off
+Profile (`/profile/my-reports`), because it's used often enough to be one
+of the "4-5 most important primary features," not a Profile setting. It
+kept its existing route's screen and provider entirely; only its route
+changed (`/my-reports`, now a `StatefulShellBranch` alongside the other
+three tabs), and Profile's own "My Reports" tile now switches to that tab
+(`context.go('/my-reports')`) instead of pushing a second copy of the
+screen — this is what the brief's "do not create duplicate screens/routes
+for sidebar and bottom navigation" rules out, and the fix is the same
+one-route-many-entry-points pattern Home's category shortcuts already
+established for Search in the Location Discovery upgrade. "Report Issue"
+stays a FAB rather than becoming a fifth bottom-nav destination — it
+already has one-tap access from every tab, and adding it as a sixth
+icon+label would be the "overcrowded bottom navigation" the brief warns
+against for the sake of a feature that already has prime placement.
+
+`AppDrawer` (`core/routing/app_drawer.dart`) is the single full feature
+menu: Home, Search/Discover, My Reports, Saved Reports, Report Issue,
+Map/Nearby, Settings, Help & Support, Privacy Policy, Terms & Conditions,
+About NAGARIK, and Logout — every single one of these reuses an existing
+route (Saved Reports/Settings/Report Issue/the legal pages/About are
+pushed exactly as Profile's own tiles already push them; Home/Search/My
+Reports switch tabs exactly as Profile's tiles now do). "Map / Nearby" is
+the one drawer entry with no screen of its own even conceptually: it opens
+Search pre-switched to both "Near me" and the Map view
+(`/search?nearby=true&view=map`), a small, additive `initialView`
+constructor parameter on `SearchScreen` alongside the Location Discovery
+upgrade's existing `initialCategoryName`/`initialNearby`/`initialShowAll` —
+not a new "Nearby Map" screen, which would have duplicated Search's
+existing List/Map toggle for no reason. A `UserAccountsDrawerHeader`
+showing the signed-in citizen's name/email stands in for a dedicated
+"Profile" drawer entry (the brief's list doesn't include one, since Profile
+is already one of the four bottom-nav tabs).
+
+**The drawer is wired to each tab's own `Scaffold`, not the outer shell
+scaffold.** `ScaffoldWithNavBar` (the `StatefulShellRoute`'s shared
+scaffold) has no `AppBar` of its own — each tab (`HomeFeedScreen`,
+`SearchScreen`, `MyReportsScreen`, `ProfileScreen`) renders its own nested
+`Scaffold` with its own `PrimaryAppBar`. Flutter only auto-shows the
+hamburger menu icon on an `AppBar` that's a direct child of the `Scaffold`
+carrying the `drawer:`, so `AppDrawer` is declared on each of those four
+screens' own `Scaffold` instead of the shell's — the technically correct
+place for it to actually produce a hamburger icon, not an arbitrary choice.
+
+**Verification:** backend — `tests/test_saved_reports.py` (13 new tests:
+save/unsave, idempotent duplicate save, 404 on a nonexistent report,
+per-caller isolation on `GET /reports/saved`, the `/saved` route-shadow
+regression, and `is_saved` reflecting anonymous vs. the correct
+authenticated caller on `GET /reports/{id}`) plus the existing suite,
+76 total, all passing, `ruff check` clean. Mobile — `test/
+report_share_test.dart` (pure-Dart: required fields present, `user_id`/
+exact coordinates never present, long descriptions truncated),
+`test/error_empty_states_test.dart` (`ErrorView.forError`'s network/API/
+fallback branches and each `EmptyView` preset), and `test/
+app_drawer_test.dart` (every hybrid-nav menu item is present, plus the
+profile header) — all passing the same brace/import static check used
+throughout this project (no Flutter SDK in this environment; see
+`mobile/README.md`).

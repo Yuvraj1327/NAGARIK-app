@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,6 +54,70 @@ void main() {
 
     await tester.tap(find.byType(ReportCard));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('ReportCard hides the footer row when no reference id or date is given',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReportCard(
+            title: 'Road',
+            description: 'Large pothole near the bus stop.',
+            category: ReportCategory.road,
+            status: ReportStatus.submitted,
+            city: 'Pune',
+            pinCode: '411001',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(Divider), findsNothing);
+    expect(find.byType(CachedNetworkImage), findsNothing);
+  });
+
+  testWidgets('ReportCard shows the reference id and date when given', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReportCard(
+            title: 'Road',
+            description: 'Large pothole near the bus stop.',
+            category: ReportCategory.road,
+            status: ReportStatus.submitted,
+            city: 'Pune',
+            pinCode: '411001',
+            referenceId: 'NGR-2026-00001',
+            date: DateTime(2026, 1, 15),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('NGR-2026-00001'), findsOneWidget);
+    expect(find.text('15 Jan 2026'), findsOneWidget);
+    expect(find.byType(Divider), findsOneWidget);
+  });
+
+  testWidgets('ReportCard shows a thumbnail when an image url is given', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ReportCard(
+            title: 'Road',
+            description: 'Large pothole near the bus stop.',
+            category: ReportCategory.road,
+            status: ReportStatus.submitted,
+            city: 'Pune',
+            pinCode: '411001',
+            imageUrl: 'https://signed.example/photo.jpg',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CachedNetworkImage), findsOneWidget);
   });
 
   testWidgets('StatusBadge shows the right label for every status', (tester) async {

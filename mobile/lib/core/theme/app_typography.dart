@@ -48,4 +48,50 @@ class AppTypography {
       color: AppColors.onPrimary,
     ),
   );
+
+  /// Same type scale as [textTheme], recolored for a dark background
+  /// (`AppTheme.dark`). Kept as a fully separate table rather than a
+  /// `.apply(color: ...)` call on [textTheme], since `labelLarge` (button
+  /// label text) intentionally keeps `AppColors.onPrimary`, not the
+  /// dark-mode body text color — buttons stay filled with `AppColors.primary`
+  /// in both themes.
+  static const TextTheme darkTextTheme = TextTheme(
+    headlineMedium: TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.bold,
+      color: AppColors.darkTextPrimary,
+    ),
+    headlineSmall: TextStyle(
+      fontSize: 22,
+      fontWeight: FontWeight.bold,
+      color: AppColors.darkTextPrimary,
+    ),
+    titleLarge: TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w600,
+      color: AppColors.darkTextPrimary,
+    ),
+    titleMedium: TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      color: AppColors.darkTextPrimary,
+    ),
+    bodyLarge: TextStyle(
+      fontSize: 16,
+      color: AppColors.darkTextPrimary,
+    ),
+    bodyMedium: TextStyle(
+      fontSize: 14,
+      color: AppColors.darkTextSecondary,
+    ),
+    bodySmall: TextStyle(
+      fontSize: 12,
+      color: AppColors.darkTextSecondary,
+    ),
+    labelLarge: TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: AppColors.onPrimary,
+    ),
+  );
 }

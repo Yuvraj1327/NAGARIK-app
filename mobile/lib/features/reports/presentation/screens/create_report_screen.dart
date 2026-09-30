@@ -77,15 +77,17 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   Future<void> _submitDraft() async {
     setState(() => _isSubmitting = true);
     try {
-      await ref.read(reportsRepositoryProvider).submitReport(_draft);
+      final submitted = await ref.read(reportsRepositoryProvider).submitReport(_draft);
       if (!mounted) return;
 
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Report submitted'),
-          content: const Text(
-            'Thank you — your report has been submitted and is now marked as Submitted.',
+          content: Text(
+            'Thank you — your report has been submitted and is now marked as Submitted.\n\n'
+            'Report ID: ${submitted.referenceId}\n'
+            'Keep this ID to track or refer to your report.',
           ),
           actions: [
             TextButton(

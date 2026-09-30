@@ -10,4 +10,7 @@ class ApiEndpoints {
   static const String health = '/health';
   static const String currentUser = '/users/me';
   static const String reports = '/reports';
+  static const String reportStats = '/reports/stats';
+  static const String reportMarkers = '/reports/markers';
+  static const String savedReports = '/reports/saved';
 }

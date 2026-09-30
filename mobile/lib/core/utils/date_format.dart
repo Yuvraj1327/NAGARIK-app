@@ -19,3 +19,14 @@ String formatReportTimestamp(DateTime dateTime) {
   final period = hour24 < 12 ? 'AM' : 'PM';
   return '$day $month $year, $hour12:$minute $period';
 }
+
+/// Date-only variant of [formatReportTimestamp] (no time-of-day), for
+/// tight spaces like a report card's footer row where the full
+/// date-and-time would crowd out the reference id next to it.
+String formatReportDate(DateTime dateTime) {
+  final local = dateTime.toLocal();
+  final day = local.day.toString();
+  final month = _months[local.month - 1];
+  final year = local.year.toString();
+  return '$day $month $year';
+}

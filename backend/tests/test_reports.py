@@ -5,6 +5,8 @@ client so these run with no network access and no real Supabase project.
 """
 
 import io
+import itertools
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -84,13 +86,27 @@ class _FakeStorage:
         return self._bucket
 
 
+class _FakeAPIError(Exception):
+    """Minimal stand-in for `postgrest.exceptions.APIError` — real Supabase
+    errors carry a `.code` (e.g. `"PGRST205"`), which is exactly what
+    `reports_service._raise_for_supabase_error` inspects to tell "the
+    schema/migrations aren't set up" apart from an ordinary failure. Kept
+    separate from the real `postgrest` package so these tests don't need
+    it installed just to simulate its error shape."""
+
+    def __init__(self, code: str, message: str = "simulated PostgREST error") -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
 class _FakeQueryBuilder:
     """Enough of postgrest-py's chained select/filter/execute API,
     implemented over a plain in-memory list, to exercise the real filtering,
     ordering, and pagination logic in `reports_service.list_reports`/
     `get_report` without a live Supabase project."""
 
-    def __init__(self, rows: list[dict]) -> None:
+    def __init__(self, rows: list[dict], *, fail_with_code: str | None = None) -> None:
         self._rows = rows
         self._filters: list = []
         self._order_key: str | None = None
@@ -98,6 +114,7 @@ class _FakeQueryBuilder:
         self._range: tuple[int, int] | None = None
         self._limit: int | None = None
         self._count_requested = False
+        self._fail_with_code = fail_with_code
 
     def select(self, *columns: str, count: str | None = None, head: bool | None = None):
         self._count_requested = count is not None
@@ -138,6 +155,8 @@ class _FakeQueryBuilder:
         return self
 
     def execute(self) -> SimpleNamespace:
+        if self._fail_with_code is not None:
+            raise _FakeAPIError(self._fail_with_code)
         rows = [row for row in self._rows if all(f(row) for f in self._filters)]
         if self._order_key is not None:
             rows.sort(key=lambda row: row[self._order_key], reverse=self._order_desc)
@@ -151,26 +170,49 @@ class _FakeQueryBuilder:
 
 
 class _FakeTable:
-    def __init__(self, *, fail_insert: bool = False, seed_rows: list[dict] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        fail_insert: bool = False,
+        fail_insert_code: str | None = None,
+        fail_query_code: str | None = None,
+        seed_rows: list[dict] | None = None,
+    ) -> None:
         self.rows: list[dict] = list(seed_rows or [])
         self.fail_insert = fail_insert
+        self.fail_insert_code = fail_insert_code
+        self.fail_query_code = fail_query_code
         self._pending_row: dict | None = None
+        # Simulates `0003_report_reference_id.sql`'s per-year counter: a
+        # fresh `_FakeTable` (one per test, via the `fake_supabase`/
+        # `make_fake_supabase` fixtures) starts its own count at 1, same as
+        # a brand-new Supabase project would for year `_reference_year`.
+        self._reference_seq = itertools.count(1)
+        self._reference_year = datetime.now(UTC).year
 
     def insert(self, row: dict) -> "_FakeTable":
         self._pending_row = row
         return self
 
     def select(self, *columns: str, count: str | None = None, head: bool | None = None):
-        return _FakeQueryBuilder(self.rows).select(*columns, count=count, head=head)
+        return _FakeQueryBuilder(self.rows, fail_with_code=self.fail_query_code).select(
+            *columns, count=count, head=head
+        )
 
     def execute(self) -> SimpleNamespace:
+        if self.fail_insert_code is not None:
+            raise _FakeAPIError(self.fail_insert_code)
         if self.fail_insert:
             raise RuntimeError("simulated database failure")
         # Mirrors what real Postgres/PostgREST does: columns not given an
-        # explicit value get their schema DEFAULT (id, status, timestamps),
-        # and `insert().execute()` returns the full stored row either way.
+        # explicit value get their schema DEFAULT (id, status, timestamps,
+        # reference_id — the last one assigned by the `BEFORE INSERT`
+        # trigger from 0003_report_reference_id.sql, simulated here the
+        # same way), and `insert().execute()` returns the full stored row
+        # either way.
         record = {
             "id": str(uuid.uuid4()),
+            "reference_id": f"NGR-{self._reference_year}-{next(self._reference_seq):05d}",
             "status": "submitted",
             "created_at": datetime.now(UTC).isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
@@ -185,20 +227,35 @@ class FakeSupabaseClient:
         self,
         *,
         fail_insert: bool = False,
+        fail_insert_code: str | None = None,
+        fail_query_code: str | None = None,
         seed_rows: list[dict] | None = None,
     ) -> None:
         self.storage_bucket = _FakeStorageBucket()
         self.storage = _FakeStorage(self.storage_bucket)
-        self._table = _FakeTable(fail_insert=fail_insert, seed_rows=seed_rows)
+        self._table = _FakeTable(
+            fail_insert=fail_insert,
+            fail_insert_code=fail_insert_code,
+            fail_query_code=fail_query_code,
+            seed_rows=seed_rows,
+        )
 
     def table(self, name: str) -> _FakeTable:
         assert name == "reports"
         return self._table
 
 
+# Backs `_make_report_row`'s default `reference_id` so every directly-seeded
+# row gets its own unique one (matching the real unique index from
+# 0003_report_reference_id.sql) without every call site having to invent
+# one — a test that actually cares about the value passes it explicitly.
+_seeded_reference_seq = itertools.count(1)
+
+
 def _make_report_row(
     *,
     report_id: str | None = None,
+    reference_id: str | None = None,
     user_id: str = "user-123",
     category: str = "road",
     description: str = "A civic issue report.",
@@ -215,6 +272,8 @@ def _make_report_row(
     created = created_at or datetime.now(UTC)
     return {
         "id": report_id or str(uuid.uuid4()),
+        "reference_id": reference_id
+        or f"NGR-{created.year}-{next(_seeded_reference_seq):05d}",
         "user_id": user_id,
         "category": category,
         "description": description,
@@ -422,6 +481,30 @@ def test_submit_report_cleans_up_uploaded_images_on_db_failure():
         app.dependency_overrides.pop(get_supabase_service_client, None)
 
 
+def test_submit_report_returns_503_when_reports_table_is_missing():
+    """A `PGRST205` ('Could not find the table public.reports in the schema
+    cache') means the SQL migrations haven't been run against this Supabase
+    project — a setup problem, not a transient failure, so it should be a
+    distinct 503 with guidance, not the generic "try again" 502."""
+    fake = FakeSupabaseClient(fail_insert_code="PGRST205")
+    app.dependency_overrides[get_supabase_service_client] = lambda: fake
+    try:
+        response = client.post(
+            "/api/v1/reports",
+            headers=_auth_headers(),
+            data={
+                "category": "road",
+                "description": "Large pothole near the bus stop.",
+                "city": "Pune",
+                "pin_code": "411001",
+            },
+        )
+        assert response.status_code == 503
+        assert "migrations" in response.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.pop(get_supabase_service_client, None)
+
+
 # ---------------------------------------------------------------------------
 # GET /reports/{id} (Step 7)
 # ---------------------------------------------------------------------------
@@ -460,6 +543,15 @@ def test_get_report_detail_404_for_unknown_id(make_fake_supabase):
     response = client.get("/api/v1/reports/does-not-exist")
 
     assert response.status_code == 404
+
+
+def test_get_report_detail_returns_503_when_reports_table_is_missing(make_fake_supabase):
+    make_fake_supabase(fail_query_code="PGRST205")
+
+    response = client.get("/api/v1/reports/anything")
+
+    assert response.status_code == 503
+    assert "migrations" in response.json()["detail"].lower()
 
 
 def test_get_report_detail_degrades_gracefully_when_signing_fails(make_fake_supabase):
@@ -633,3 +725,281 @@ def test_browse_reports_degrades_gracefully_when_signing_fails(make_fake_supabas
     body = response.json()
     assert body["items"][0]["image_paths"] == ["user-123/a.jpg", "user-123/b.jpg"]
     assert body["items"][0]["image_urls"] == []
+
+
+def test_browse_reports_returns_503_when_reports_table_is_missing(make_fake_supabase):
+    make_fake_supabase(fail_query_code="PGRST205")
+
+    response = client.get("/api/v1/reports")
+
+    assert response.status_code == 503
+    assert "migrations" in response.json()["detail"].lower()
+
+
+def test_browse_reports_nearby_returns_503_when_reports_table_is_missing(make_fake_supabase):
+    """The nearby-search branch executes a different query chain than the
+    plain paginated one — worth covering separately since it's a distinct
+    code path in `list_reports`."""
+    make_fake_supabase(fail_query_code="PGRST205")
+
+    response = client.get("/api/v1/reports", params={"latitude": 18.52, "longitude": 73.85})
+
+    assert response.status_code == 503
+    assert "migrations" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# GET /reports/stats (Profile screen)
+# ---------------------------------------------------------------------------
+
+
+def test_report_stats_requires_authentication(make_fake_supabase):
+    make_fake_supabase(seed_rows=[])
+
+    response = client.get("/api/v1/reports/stats")
+
+    assert response.status_code == 401
+
+
+def test_report_stats_counts_only_the_callers_own_reports_by_status(make_fake_supabase):
+    rows = [
+        _make_report_row(user_id="user-123", status="submitted"),
+        _make_report_row(user_id="user-123", status="submitted"),
+        _make_report_row(user_id="user-123", status="in_review"),
+        _make_report_row(user_id="user-123", status="resolved"),
+        # Someone else's reports — must not be counted.
+        _make_report_row(user_id="someone-else", status="submitted"),
+        _make_report_row(user_id="someone-else", status="resolved"),
+    ]
+    make_fake_supabase(seed_rows=rows)
+
+    response = client.get("/api/v1/reports/stats", headers=_auth_headers(sub="user-123"))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total": 4,
+        "submitted": 2,
+        "in_review": 1,
+        "resolved": 1,
+    }
+
+
+def test_report_stats_is_all_zero_for_a_user_with_no_reports(make_fake_supabase):
+    make_fake_supabase(seed_rows=[_make_report_row(user_id="someone-else")])
+
+    response = client.get("/api/v1/reports/stats", headers=_auth_headers(sub="user-123"))
+
+    assert response.status_code == 200
+    assert response.json() == {"total": 0, "submitted": 0, "in_review": 0, "resolved": 0}
+
+
+def test_report_stats_returns_503_when_reports_table_is_missing(make_fake_supabase):
+    make_fake_supabase(fail_query_code="PGRST205")
+
+    response = client.get("/api/v1/reports/stats", headers=_auth_headers())
+
+    assert response.status_code == 503
+    assert "migrations" in response.json()["detail"].lower()
+
+
+def test_report_stats_route_does_not_shadow_get_report_detail(make_fake_supabase):
+    """Regression test for the FastAPI route-ordering hazard called out in
+    the endpoint's own comment: `/reports/stats` must reach the stats
+    handler, never `GET /{report_id}` with `report_id="stats"`."""
+    make_fake_supabase(seed_rows=[])
+
+    response = client.get("/api/v1/reports/stats", headers=_auth_headers())
+
+    assert response.status_code == 200
+    assert "total" in response.json()
+
+
+# ---------------------------------------------------------------------------
+# Report reference IDs (My Reports & Report Tracking upgrade) —
+# see backend/migrations/0003_report_reference_id.sql. `_FakeTable.execute`
+# simulates the real `BEFORE INSERT` trigger, so these exercise the same
+# "the caller never supplies it, the row always comes back with one"
+# contract the real database enforces.
+# ---------------------------------------------------------------------------
+
+_REFERENCE_ID_PATTERN = re.compile(r"^NGR-\d{4}-\d{5}$")
+
+
+def test_submit_report_response_includes_a_well_formed_reference_id(fake_supabase):
+    response = client.post(
+        "/api/v1/reports",
+        headers=_auth_headers(),
+        data={
+            "category": "road",
+            "description": "Large pothole near the bus stop.",
+            "city": "Pune",
+            "pin_code": "411001",
+        },
+    )
+
+    assert response.status_code == 201
+    reference_id = response.json()["reference_id"]
+    assert _REFERENCE_ID_PATTERN.match(reference_id), reference_id
+
+
+def test_submitting_two_reports_gives_each_a_different_reference_id(fake_supabase):
+    def _submit() -> str:
+        response = client.post(
+            "/api/v1/reports",
+            headers=_auth_headers(),
+            data={
+                "category": "road",
+                "description": "Large pothole near the bus stop.",
+                "city": "Pune",
+                "pin_code": "411001",
+            },
+        )
+        assert response.status_code == 201
+        return response.json()["reference_id"]
+
+    first = _submit()
+    second = _submit()
+
+    assert first != second
+
+
+def test_get_report_detail_includes_the_reference_id(make_fake_supabase):
+    row = _make_report_row(reference_id="NGR-2026-00042")
+    make_fake_supabase(seed_rows=[row])
+
+    response = client.get(f"/api/v1/reports/{row['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["reference_id"] == "NGR-2026-00042"
+
+
+def test_browse_reports_includes_reference_id_for_every_item(make_fake_supabase):
+    rows = [_make_report_row(), _make_report_row()]
+    make_fake_supabase(seed_rows=rows)
+
+    response = client.get("/api/v1/reports")
+
+    assert response.status_code == 200
+    reference_ids = [item["reference_id"] for item in response.json()["items"]]
+    assert all(_REFERENCE_ID_PATTERN.match(value) for value in reference_ids)
+    # Also unique across the page — two reports never share an id.
+    assert len(reference_ids) == len(set(reference_ids))
+
+
+def test_browse_reports_mine_does_not_leak_another_users_reference_id(make_fake_supabase):
+    """User isolation, specifically for the My Reports screen: a caller's
+    `?mine=true` results must never include another user's report, whether
+    identified by `id` or by `reference_id`."""
+    mine = _make_report_row(user_id="user-123", reference_id="NGR-2026-00001")
+    someone_elses = _make_report_row(user_id="user-999", reference_id="NGR-2026-00002")
+    make_fake_supabase(seed_rows=[mine, someone_elses])
+
+    response = client.get(
+        "/api/v1/reports", params={"mine": True}, headers=_auth_headers(sub="user-123")
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    reference_ids = {item["reference_id"] for item in body["items"]}
+    assert reference_ids == {"NGR-2026-00001"}
+    assert "NGR-2026-00002" not in reference_ids
+
+
+# ---------------------------------------------------------------------------
+# GET /reports/markers (Location Discovery & Home upgrade) — lean data for
+# the Nearby/Discovery map.
+# ---------------------------------------------------------------------------
+
+_MARKER_FIELDS = {"id", "reference_id", "category", "status", "city", "latitude", "longitude"}
+
+
+def test_get_report_markers_route_does_not_shadow_get_report_detail(make_fake_supabase):
+    """Same route-ordering hazard as `/stats`: `/reports/markers` must reach
+    the markers handler, never `GET /{report_id}` with `report_id="markers"`."""
+    make_fake_supabase(seed_rows=[])
+
+    response = client.get("/api/v1/reports/markers")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": []}
+
+
+def test_get_report_markers_returns_only_the_lean_marker_fields(make_fake_supabase):
+    row = _make_report_row(latitude=18.5204, longitude=73.8567)
+    make_fake_supabase(seed_rows=[row])
+
+    response = client.get("/api/v1/reports/markers")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert set(items[0].keys()) == _MARKER_FIELDS
+    assert items[0]["id"] == row["id"]
+    assert items[0]["reference_id"] == row["reference_id"]
+
+
+def test_get_report_markers_omits_reports_without_coordinates(make_fake_supabase):
+    with_coords = _make_report_row(latitude=18.5204, longitude=73.8567)
+    without_coords = _make_report_row(latitude=None, longitude=None)
+    make_fake_supabase(seed_rows=[with_coords, without_coords])
+
+    response = client.get("/api/v1/reports/markers")
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()["items"]}
+    assert ids == {with_coords["id"]}
+
+
+def test_get_report_markers_filters_by_category(make_fake_supabase):
+    road = _make_report_row(category="road", latitude=18.52, longitude=73.85)
+    water = _make_report_row(category="water", latitude=18.53, longitude=73.86)
+    make_fake_supabase(seed_rows=[road, water])
+
+    response = client.get("/api/v1/reports/markers", params={"category": "road"})
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["id"] == road["id"]
+
+
+def test_get_report_markers_nearby_filters_by_radius(make_fake_supabase):
+    near = _make_report_row(latitude=18.5204, longitude=73.8567)  # Pune
+    far = _make_report_row(latitude=28.7041, longitude=77.1025)  # Delhi
+    make_fake_supabase(seed_rows=[near, far])
+
+    response = client.get(
+        "/api/v1/reports/markers",
+        params={"latitude": 18.5204, "longitude": 73.8567, "radius_km": 5},
+    )
+
+    assert response.status_code == 200
+    ids = {item["id"] for item in response.json()["items"]}
+    assert ids == {near["id"]}
+
+
+def test_get_report_markers_nearby_requires_both_coordinates(make_fake_supabase):
+    make_fake_supabase(seed_rows=[])
+
+    response = client.get("/api/v1/reports/markers", params={"latitude": 18.5204})
+
+    assert response.status_code == 400
+
+
+def test_get_report_markers_returns_503_when_reports_table_is_missing(make_fake_supabase):
+    make_fake_supabase(fail_query_code="PGRST205")
+
+    response = client.get("/api/v1/reports/markers")
+
+    assert response.status_code == 503
+    assert "migrations" in response.json()["detail"].lower()
+
+
+def test_get_report_markers_requires_no_authentication(make_fake_supabase):
+    """The map is public, same as the feed/search results it's an
+    alternate view of — no bearer token needed."""
+    make_fake_supabase(seed_rows=[_make_report_row(latitude=18.52, longitude=73.85)])
+
+    response = client.get("/api/v1/reports/markers")
+
+    assert response.status_code == 200
