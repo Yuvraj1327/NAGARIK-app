@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -100,14 +99,9 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
 
       if (!mounted) return;
       context.go('/home');
-    } on DioException catch (error) {
+    } on ApiException catch (error) {
       if (!mounted) return;
-      final apiError = error.error;
-      _showMessage(
-        apiError is ApiException
-            ? apiError.message
-            : 'Could not submit your report. Please try again.',
-      );
+      _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
       _showMessage('Could not submit your report. Please try again.');

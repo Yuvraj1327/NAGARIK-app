@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nagarik/core/theme/app_colors.dart';
+import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/shared/widgets/logo.dart';
+import 'package:nagarik/shared/widgets/profile_avatar.dart';
 
 /// The app's full feature menu (Report Sharing, Saved Reports & Final
 /// Feature Polish upgrade's hybrid navigation structure).
@@ -40,18 +43,72 @@ class AppDrawer extends ConsumerWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          UserAccountsDrawerHeader(
+          // Official Logo upgrade: the brand mark at the top of the app's
+          // full feature menu. Kept as its own row above the account
+          // info — not merged into `currentAccountPicture` below, which is
+          // the signed-in *user's* photo (User Profile Photo upgrade), a
+          // separate thing from the app's own identity.
+          DrawerHeader(
             decoration: const BoxDecoration(color: AppColors.primary),
-            accountName: Text(profile?.displayName ?? 'NAGARIK'),
-            accountEmail: profile?.email != null ? Text(profile!.email!) : null,
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: AppColors.onPrimary,
-              child: Text(
-                (profile?.displayName.isNotEmpty ?? false)
-                    ? profile!.displayName[0].toUpperCase()
-                    : 'N',
-                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
-              ),
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Logo(size: 32),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'NAGARIK',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    ProfileAvatar(
+                      avatarUrl: profile?.avatarUrl,
+                      displayName: profile?.displayName ?? 'N',
+                      radius: 22,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            profile?.displayName ?? 'NAGARIK',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: AppColors.onPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (profile?.email != null)
+                            Text(
+                              profile!.email!,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onPrimary,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           ListTile(

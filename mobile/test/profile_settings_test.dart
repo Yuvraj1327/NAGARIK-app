@@ -74,4 +74,28 @@ void main() {
       expect(profile.displayName, 'Citizen');
     });
   });
+
+  group('UserProfile.fromJson', () {
+    test('parses avatar_url when present (User Profile Photo upgrade)', () {
+      final profile = UserProfile.fromJson({
+        'id': 'u1',
+        'email': 'a@example.com',
+        'full_name': 'Asha Rao',
+        'avatar_url': 'https://example.com/signed/avatar.jpg',
+      });
+
+      expect(profile.avatarUrl, 'https://example.com/signed/avatar.jpg');
+    });
+
+    test('avatar_url is null when the user has no photo', () {
+      final profile = UserProfile.fromJson({
+        'id': 'u1',
+        'email': 'a@example.com',
+        'full_name': 'Asha Rao',
+        'avatar_url': null,
+      });
+
+      expect(profile.avatarUrl, isNull);
+    });
+  });
 }

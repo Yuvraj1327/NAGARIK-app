@@ -16,11 +16,24 @@ Editor -> New query), **in order**:
    report. **Required before using the My Reports / Report Tracking
    upgrade** — without it, every report response is missing
    `reference_id`, which the API schema now requires.
+4. `0004_saved_reports.sql` — creates the `saved_reports` table (the
+   `unique (user_id, report_id)` constraint that prevents duplicate saves)
+   and its RLS policies. **Required before using the Report Sharing, Saved
+   Reports & Final Feature Polish upgrade** — without it, `GET
+   /reports/saved` and `POST`/`DELETE /reports/{id}/save` all fail with the
+   same `PGRST205`-style 503 a missing `reports` table would.
+5. `0005_avatars_bucket.sql` — creates the private `avatars` Storage bucket
+   and its per-user-folder RLS policies (insert/select/update/delete), same
+   shape as 0002 but for profile photos instead of report photos.
+   **Required before using the Official Logo & User Profile Photo
+   upgrade** — without it, `POST`/`DELETE /users/me/avatar` fail with a 502
+   (a missing bucket isn't a PostgREST schema-cache error, so it doesn't
+   produce a 503 like the table-based migrations above).
 
 Paste each file's full contents into the SQL Editor and click **Run**, in
-order (0001, then 0002, then 0003). All three are safe to re-run (`create
-table if not exists`, `create index if not exists`, `on conflict (id) do
-nothing`, and 0003's backfill only touches rows that still have a null
+order (0001 through 0005). All five are safe to re-run (`create table if
+not exists`, `create index if not exists`, `on conflict (id) do nothing`,
+and 0003's backfill only touches rows that still have a null
 `reference_id`) — running any of them again is a no-op, not an error, so if
 you're not sure whether one already applied, just run it again.
 
@@ -29,7 +42,10 @@ there isn't one: `GET /api/v1/users/me` reads `email` and `full_name`
 straight out of the caller's verified Supabase Auth JWT (`full_name` is
 what the Flutter app passed as `signUp()`'s `data: {'full_name': ...}`,
 stored by Supabase Auth itself in `auth.users.raw_user_meta_data`) — no
-database round-trip and nothing extra to create.
+database round-trip and nothing extra to create. A profile photo (Official
+Logo & User Profile Photo upgrade) follows the same idea: only its bytes
+need a migration (0005's Storage bucket) — the *reference* to it
+(`avatar_path`) is one more key in that same JWT `user_metadata`.
 
 ## "Could not find the table 'public.reports' in the schema cache" (PGRST205)
 

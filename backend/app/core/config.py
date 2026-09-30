@@ -67,6 +67,17 @@ class Settings(BaseSettings):
     # private, so every report response gets freshly signed URLs rather
     # than a permanent link — this just controls that link's lifetime.
     REPORT_IMAGE_SIGNED_URL_TTL_SECONDS: int = 3600
+    # Name of the Supabase Storage bucket used for profile photos (Official
+    # Logo & User Profile Photo upgrade) — a separate bucket from
+    # SUPABASE_STORAGE_BUCKET so report images and avatars have their own
+    # RLS policies and lifecycle, even though both are private and follow
+    # the same "<user_id>/..." path convention.
+    SUPABASE_AVATAR_BUCKET: str = "avatars"
+    # How long a signed avatar URL stays valid. Kept as its own setting
+    # (rather than reusing REPORT_IMAGE_SIGNED_URL_TTL_SECONDS) since a
+    # profile photo and a report photo may reasonably want different
+    # lifetimes even though both default to the same value today.
+    AVATAR_SIGNED_URL_TTL_SECONDS: int = 3600
 
     # ---- Security ----
     JWT_ALGORITHM: str = "HS256"

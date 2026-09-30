@@ -52,12 +52,20 @@ network/API/fallback branches and every `EmptyView` named-constructor
 preset; `app_drawer_test.dart` pins that every item the hybrid navigation
 brief calls for is actually present in `AppDrawer`, plus its profile header.
 
+**Official Logo & User Profile Photo upgrade:** `logo_test.dart` covers
+`Logo` (the correct asset path, default/custom square sizing, optional
+corner-radius clipping) and that `SplashScreen` renders it; `profile_avatar_test.dart`
+covers `ProfileAvatar`'s initial-letter fallback (no photo, an empty-string
+URL, and an empty display name) and custom radius; two cases added to
+`profile_settings_test.dart` cover `UserProfile.fromJson` parsing the new
+`avatar_url` field.
+
 ## Project layout
 
 ```
 lib/
-├── main.dart                 # entrypoint: loads env, inits Supabase, runs app
-├── app.dart                  # root MaterialApp.router widget, applies AppTheme
+├── main.dart                 # entrypoint: runs the app immediately (splash shows first)
+├── app.dart                  # root widget: shows SplashScreen while env/Supabase init, then MaterialApp.router
 ├── core/
 │   ├── config/env.dart               # typed .env access
 │   ├── constants/
@@ -72,6 +80,7 @@ lib/
 │   │   ├── app_router.dart               # go_router config: shell + top-level routes
 │   │   ├── scaffold_with_nav_bar.dart    # bottom-nav shell (Home/Search/My Reports/Profile) + Report FAB
 │   │   └── app_drawer.dart               # AppDrawer: the full feature menu, on every bottom-nav tab
+│   ├── startup/splash_screen.dart    # SplashScreen: the logo, shown while app.dart loads env/Supabase
 │   ├── theme/
 │   │   ├── app_colors.dart               # color palette (light + dark tokens)
 │   │   ├── app_spacing.dart              # spacing + radius scale
@@ -81,9 +90,9 @@ lib/
 │   └── utils/                        # empty
 ├── features/
 │   ├── auth/
-│   │   ├── data/auth_repository.dart         # signUp/signIn/signOut/updateFullName
+│   │   ├── data/auth_repository.dart         # signUp/signIn/signOut/updateFullName/updateAvatarPath (merges user_metadata)
 │   │   └── presentation/
-│   │       ├── screens/                      # login_screen.dart, signup_screen.dart
+│   │       ├── screens/                      # login_screen.dart, signup_screen.dart (both show Logo)
 │   │       └── widgets/confirm_logout.dart   # shared logout confirmation (Profile + Settings)
 │   ├── discovery/
 │   │   ├── domain/home_location.dart                          # current device position + reverse-geocoded city
@@ -92,9 +101,12 @@ lib/
 │   │       ├── screens/search_screen.dart                      # keyword/category/status/city/PIN/nearby filters + List/Map toggle
 │   │       ├── providers/discovery_providers.dart              # homeLocationProvider, nearbyReportsProvider, geocodingServiceProvider
 │   │       └── widgets/                                        # discovery_section_header.dart, location_indicator.dart, category_grid.dart
-│   ├── profile/presentation/screens/
-│   │   ├── profile_screen.dart       # identity header + stats + MY ACTIVITY/SETTINGS/LEGAL/ACCOUNT sections
-│   │   └── edit_profile_screen.dart  # editable full name (Supabase Auth user_metadata; email is read-only)
+│   ├── profile/
+│   │   ├── domain/avatar_upload_result.dart      # POST /users/me/avatar's response (avatar_path + signed avatar_url)
+│   │   ├── data/profile_repository.dart          # fetchCurrentUser / uploadAvatar / removeAvatar
+│   │   └── presentation/screens/
+│   │       ├── profile_screen.dart       # identity header (real photo via ProfileAvatar) + stats + MY ACTIVITY/SETTINGS/LEGAL/ACCOUNT sections
+│   │       └── edit_profile_screen.dart  # editable full name + profile photo (upload/replace/remove via a bottom sheet); email is read-only
 │   ├── settings/presentation/screens/
 │   │   ├── settings_screen.dart        # account info, theme preference, help/legal/logout
 │   │   ├── help_support_screen.dart
@@ -129,7 +141,9 @@ lib/
     ├── app_card.dart            # AppCard (brightness-aware: light mode unchanged, adds dark support)
     ├── status_badge.dart        # StatusBadge (colored by ReportStatus)
     ├── status_timeline.dart     # StatusTimeline (vertical progress timeline, Report Detail)
-    ├── primary_app_bar.dart     # PrimaryAppBar
+    ├── primary_app_bar.dart     # PrimaryAppBar (showLogo: true on Home's app bar)
+    ├── logo.dart                # Logo: the one official NAGARIK mark, everywhere it appears
+    ├── profile_avatar.dart      # ProfileAvatar: the user's photo, or an initial-letter fallback
     ├── loading_view.dart        # LoadingView
     ├── error_view.dart          # ErrorView (message + optional Retry); ErrorView.forError distinguishes network vs. API errors
     ├── empty_view.dart          # EmptyView (icon + title + message + optional action); .noReports/.noSavedReports/.noNearbyReports/.searchNoResults presets
@@ -137,7 +151,7 @@ lib/
     ├── settings_list_tile.dart  # SettingsListTile (icon + title + trailing chevron/checkmark)
     ├── settings_section.dart    # SettingsSection (grouped SettingsListTiles in one card)
     ├── stat_tile.dart           # StatTile (big number + label, Profile's stats strip)
-    └── static_content_screen.dart # StaticContentScreen (shared layout for Privacy/Terms/About/Help)
+    └── static_content_screen.dart # StaticContentScreen (shared layout for Privacy/Terms/About/Help; optional `header` slot, used by About for the Logo)
 ```
 
 Each feature folder follows a light clean-architecture split
@@ -175,7 +189,26 @@ folders. Once you scaffold them on your machine, add:
 Without these, `LocationService.getCurrentPosition()` and the gallery/camera
 pickers in the "Photos" step of report creation will fail at runtime with a
 platform permission error even though the Dart code itself is correct —
-this is standard Flutter behavior, not a bug in this app.
+this is standard Flutter behavior, not a bug in this app. The same camera/
+photo-library permissions also cover Edit Profile's photo picker (Official
+Logo & User Profile Photo upgrade) — no separate declaration needed.
+
+## App icons
+
+`pubspec.yaml` has a `flutter_launcher_icons:` block already pointing at
+`assets/images/nagarik_logo.png`, covering Android, iOS, web, macOS, and
+Windows. Like the native permissions above, there's nothing for it to
+generate into yet — this repository has never been through `flutter
+create` and has no `android/`/`ios/`/`web/`/`macos/`/`windows/` folders for
+it to write icons into. Once you've run `flutter create .` (see
+"Prerequisites" above), generate the icons with:
+
+```bash
+dart run flutter_launcher_icons
+```
+
+Re-run it any time `assets/images/nagarik_logo.png` changes — it's a
+one-shot generator, not something that stays in sync automatically.
 
 ## Navigation (hybrid bottom nav + drawer)
 
@@ -335,3 +368,31 @@ the full set of decisions behind this upgrade.
 
 See `docs/ARCHITECTURE.md` section 18 for the full set of decisions behind
 this upgrade, including why each backend addition was (or wasn't) needed.
+
+## Official Logo & User Profile Photo upgrade
+
+- **Logo** — the real NAGARIK mark (`assets/images/nagarik_logo.png`)
+  replaces every placeholder, through one reusable `Logo` widget: Login,
+  Signup, the startup splash (`SplashScreen`, shown while `app.dart` loads
+  `.env`/Supabase), the Home app bar (`PrimaryAppBar(showLogo: true)`), the
+  navigation drawer's header, and About NAGARIK.
+- **Profile photo** — Edit Profile's avatar has a small camera-badge button
+  opening Take Photo / Choose from Gallery / Remove Photo (the last only
+  when a photo exists). Photos upload to a new private `avatars` Storage
+  bucket via `POST /users/me/avatar`, downscaled client-side first
+  (`maxWidth: 1024, imageQuality: 85`). `ProfileAvatar` shows the real photo
+  everywhere the user's identity appears (Edit Profile, the Profile tab,
+  the drawer header) and falls back to an initial-letter avatar when
+  there's no photo, it's still loading, or its signed URL has expired.
+- **`AuthRepository`'s metadata-merge fix** — the same `user_metadata` that
+  stores `full_name` now also stores `avatar_path`, and Supabase Auth's
+  `updateUser(data: ...)` *replaces* that object rather than merging it
+  (see `docs/ARCHITECTURE.md` section 19 for the confirming source). Both
+  `updateFullName` and the new `updateAvatarPath` now go through one
+  private helper that merges the change into the user's existing metadata
+  first, so setting one field never silently erases the other.
+- **App icons** — see "App icons" above.
+
+See `docs/ARCHITECTURE.md` section 19 for the full set of decisions behind
+this upgrade, including the Storage bucket/RLS design and why the backend
+never writes `user_metadata` itself.

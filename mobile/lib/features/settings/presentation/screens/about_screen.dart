@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/shared/widgets/logo.dart';
 import 'package:nagarik/shared/widgets/static_content_screen.dart';
 
 /// Profile/Settings -> About NAGARIK.
@@ -16,6 +17,7 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const StaticContentScreen(
       title: 'About NAGARIK',
+      header: Center(child: Padding(padding: EdgeInsets.only(bottom: 8), child: Logo(size: 88))),
       sections: [
         StaticContentSection(
           heading: 'NAGARIK — A Civic Good Initiative',

@@ -68,7 +68,7 @@ class HomeFeedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'NAGARIK'),
+      appBar: const PrimaryAppBar(title: 'NAGARIK', showLogo: true),
       drawer: const AppDrawer(),
       body: RefreshIndicator(
         onRefresh: () => _onRefresh(ref),

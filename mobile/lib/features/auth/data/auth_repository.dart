@@ -66,8 +66,41 @@ class AuthRepository {
   /// reads `full_name` straight out of the JWT with no database round
   /// trip, an explicit `refreshSession()` right after is what makes the
   /// edit show up immediately instead of eventually.
-  Future<void> updateFullName(String fullName) async {
-    await _auth.updateUser(UserAttributes(data: {'full_name': fullName}));
+  Future<void> updateFullName(String fullName) => _updateMetadata({'full_name': fullName});
+
+  /// Updates the signed-in user's stored profile-photo reference (User
+  /// Profile Photo upgrade). Same `user_metadata` mechanism and the same
+  /// `refreshSession()` follow-up as [updateFullName] — see that method's
+  /// doc comment for why the refresh matters. Called right after a
+  /// successful upload/removal against the backend
+  /// (`ProfileRepository.uploadAvatar`/`removeAvatar`), never on its own:
+  /// this method only ever updates the *reference*, the backend owns the
+  /// actual Storage bytes. Pass `null` to clear it (Remove Photo).
+  Future<void> updateAvatarPath(String? avatarPath) =>
+      _updateMetadata({'avatar_path': avatarPath});
+
+  /// Merges [changes] into the user's existing `user_metadata` and pushes
+  /// the result, then refreshes the session so the change is reflected in
+  /// the JWT immediately (see [updateFullName]'s doc comment).
+  ///
+  /// This merges client-side rather than calling `updateUser` with just
+  /// `{key: value}` directly, because Supabase Auth's `data` parameter
+  /// *replaces* `user_metadata` wholesale rather than merging it — passing
+  /// only `{'avatar_path': ...}` would silently wipe out `full_name` (and
+  /// vice versa) if it weren't merged in first. A `null` value in
+  /// [changes] removes that key entirely rather than storing a literal
+  /// null, so `updateAvatarPath(null)` (Remove Photo) actually clears the
+  /// field instead of leaving a stale `"avatar_path": null` around.
+  Future<void> _updateMetadata(Map<String, dynamic> changes) async {
+    final merged = Map<String, dynamic>.from(currentUser?.userMetadata ?? {});
+    for (final entry in changes.entries) {
+      if (entry.value == null) {
+        merged.remove(entry.key);
+      } else {
+        merged[entry.key] = entry.value;
+      }
+    }
+    await _auth.updateUser(UserAttributes(data: merged));
     await _auth.refreshSession();
   }
 }

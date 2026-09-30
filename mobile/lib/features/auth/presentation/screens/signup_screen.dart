@@ -7,6 +7,7 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
+import 'package:nagarik/shared/widgets/logo.dart';
 
 /// Signup screen, wired to real Supabase Auth (Step 3).
 ///
@@ -81,6 +82,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Center(child: Logo(size: 72)),
+                const SizedBox(height: AppSpacing.md),
                 Text('Create your account', style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: AppSpacing.xs),
                 Text(

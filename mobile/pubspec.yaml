@@ -78,7 +78,42 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # -- Official Logo upgrade: generates each platform's app icon from the
+  #    same nagarik_logo.png everything else uses (see the
+  #    `flutter_launcher_icons:` config below). NOTE: this repository has
+  #    never been through `flutter create`, so it has no android/, ios/,
+  #    web/, or macos/ folders yet for a generator to write icons into —
+  #    running this tool only does something once those exist. See
+  #    mobile/README.md's "App icons" section for the one-time steps.
+  flutter_launcher_icons: ^0.14.1
+
 flutter:
   uses-material-design: true
   assets:
     - .env
+    # Official Logo upgrade: the one, exact NAGARIK logo file — see
+    # lib/shared/widgets/logo.dart, the single reusable widget every screen
+    # uses to display it.
+    - assets/images/nagarik_logo.png
+
+# Official Logo upgrade: `dart run flutter_launcher_icons` reads this
+# top-level section (it's flutter_launcher_icons' own config block, not
+# part of Flutter's `flutter:` section above) and writes the generated
+# icon files straight into each platform folder it finds. Every platform
+# below points at the same, single source file as `Logo` (the in-app
+# widget) does, so the launcher icon and the in-app logo are always the
+# same artwork.
+flutter_launcher_icons:
+  image_path: "assets/images/nagarik_logo.png"
+  android: true
+  ios: true
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/nagarik_logo.png"
+  macos:
+    generate: true
+    image_path: "assets/images/nagarik_logo.png"
+  windows:
+    generate: true
+    image_path: "assets/images/nagarik_logo.png"

@@ -7,6 +7,7 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
+import 'package:nagarik/shared/widgets/logo.dart';
 
 /// Login screen, wired to real Supabase Auth (Step 3).
 ///
@@ -61,12 +62,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'NAGARIK',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: AppSpacing.xs),
+                const Center(child: Logo(size: 96)),
+                const SizedBox(height: AppSpacing.sm),
                 Text(
                   'A Civic Good Initiative',
                   textAlign: TextAlign.center,

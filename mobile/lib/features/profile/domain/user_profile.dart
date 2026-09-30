@@ -4,17 +4,25 @@ class UserProfile {
     required this.id,
     required this.email,
     this.fullName,
+    this.avatarUrl,
   });
 
   final String id;
   final String? email;
   final String? fullName;
 
+  /// A freshly signed URL for the user's profile photo (User Profile Photo
+  /// upgrade), or `null` if they haven't set one — see
+  /// `shared/widgets/profile_avatar.dart` for the fallback that's shown
+  /// when this is `null`.
+  final String? avatarUrl;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id'] as String,
       email: json['email'] as String?,
       fullName: json['full_name'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
     );
   }
 

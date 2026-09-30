@@ -42,9 +42,19 @@ that backs bookmarking a report — **required** before `POST`/`DELETE
 (without it, those three calls fail with the same `PGRST205`-style 503
 every other missing-table case does).
 
+The fifth migration, `0005_avatars_bucket.sql` (Official Logo & User
+Profile Photo upgrade), adds a private `avatars` Storage bucket + RLS —
+**required** before `POST`/`DELETE /api/v1/users/me/avatar` will work
+(without it, both calls fail the same way every other missing-bucket case
+does: a 502 from the Storage call itself, since a missing *bucket* isn't a
+PostgREST schema-cache error like a missing table).
+
 There is no `profiles`/`users` table to migrate — `GET /api/v1/users/me`
 reads directly from the verified Supabase Auth JWT (see
-`migrations/README.md` for why).
+`migrations/README.md` for why). A profile photo doesn't change that: only
+its *bytes* live in Storage, the *reference* to it is one more key in the
+same JWT `user_metadata` `full_name` already lives in (see
+`docs/ARCHITECTURE.md` section 19).
 
 ## CORS (Flutter web dev)
 
@@ -123,6 +133,32 @@ traceback, via the catch-all handler in `app/main.py`; it never affects
 ordinary `HTTPException`/validation responses, which keep their own
 specific status codes and messages.
 
+## Users API
+
+- `GET /api/v1/users/me` — the signed-in caller's profile (auth required):
+  `id`, `email`, `full_name`, and (Official Logo & User Profile Photo
+  upgrade) `avatar_url` — a freshly signed URL for their photo, or `null`
+  if they haven't set one. Reads straight from the verified JWT's claims,
+  no database round trip, except the one real Storage call this upgrade
+  added: signing `avatar_path` (from `user_metadata`) into `avatar_url`
+  when it's set.
+- `POST /api/v1/users/me/avatar` — upload or replace the caller's profile
+  photo (auth required, multipart `image` field). Accepts JPEG/PNG/WebP up
+  to 5 MB. Returns `200` with `{"avatar_path": ..., "avatar_url": ...}`.
+  Replacing an existing photo overwrites it in place (or, if the new
+  upload has a different file extension than the old one, uploads the new
+  file and then removes the old one) — a user has exactly one profile
+  photo, never an accumulating list.
+- `DELETE /api/v1/users/me/avatar` — remove the caller's profile photo
+  (auth required). Returns `204`. Idempotent: removing when nothing was
+  ever uploaded is still `204`, not `404`.
+
+Both avatar endpoints only touch Storage — neither can update
+`user_metadata` itself (that needs the user's own Supabase session, which
+the backend never holds). The Flutter client is responsible for calling
+`AuthRepository.updateAvatarPath` with the returned `avatar_path` right
+after either call succeeds; see `docs/ARCHITECTURE.md` section 19.
+
 ## Verify it's alive
 
 ```bash
@@ -161,20 +197,23 @@ app/
 ├── models/               # backend-side domain models (added as needed)
 ├── schemas/              # Pydantic request/response schemas (per resource)
 └── services/
-    └── reports_service.py   # creation (Step 5/6), single/browse retrieval, search, nearby, signed URLs (Step 7/8), lean markers (Location Discovery & Home upgrade)
+    ├── reports_service.py    # creation (Step 5/6), single/browse retrieval, search, nearby, signed URLs (Step 7/8), lean markers (Location Discovery & Home upgrade)
+    └── profile_service.py    # avatar upload/delete/signing against the avatars Storage bucket (Official Logo & User Profile Photo upgrade)
 
 tests/
 ├── test_health.py          # liveness/readiness, incl. deterministic ok/degraded cases (Step 9)
-├── test_users.py           # JWT verification via GET /users/me
+├── test_users.py           # JWT verification via GET /users/me, incl. signed avatar_url (Official Logo & User Profile Photo upgrade)
 ├── test_reports.py         # creation, retrieval, search/filter/pagination, length limits, stats, reference ids, markers
 ├── test_saved_reports.py   # save/unsave, duplicate-prevention, per-user isolation, GET /reports/saved, is_saved (Report Sharing, Saved Reports & Final Feature Polish upgrade)
+├── test_profile_avatar.py  # upload/replace/remove, validation, per-user isolation (Official Logo & User Profile Photo upgrade)
 └── test_error_handling.py  # the app-wide unhandled-exception handler (Step 9)
 
 migrations/
 ├── 0001_reports.sql               # reports table, indexes, RLS (Step 5)
 ├── 0002_report_images_bucket.sql  # private Storage bucket + RLS (Step 6)
 ├── 0003_report_reference_id.sql   # reference_id column, per-year counter, trigger (My Reports & Report Tracking upgrade)
-└── 0004_saved_reports.sql         # saved_reports table + RLS (Report Sharing, Saved Reports & Final Feature Polish upgrade)
+├── 0004_saved_reports.sql         # saved_reports table + RLS (Report Sharing, Saved Reports & Final Feature Polish upgrade)
+└── 0005_avatars_bucket.sql        # avatars Storage bucket + RLS (Official Logo & User Profile Photo upgrade)
 ```
 
 ## Deployment

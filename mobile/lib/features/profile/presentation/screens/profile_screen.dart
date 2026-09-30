@@ -14,6 +14,7 @@ import 'package:nagarik/shared/widgets/app_card.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/profile_avatar.dart';
 import 'package:nagarik/shared/widgets/settings_list_tile.dart';
 import 'package:nagarik/shared/widgets/settings_section.dart';
 import 'package:nagarik/shared/widgets/stat_tile.dart';
@@ -98,11 +99,16 @@ class _SignedInView extends ConsumerWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 32,
-                child: Text(
-                  profile.displayName.isNotEmpty ? profile.displayName[0].toUpperCase() : '?',
-                  style: Theme.of(context).textTheme.headlineSmall,
+              // Tapping the photo jumps to Edit Profile — the one place
+              // that actually offers upload/replace/remove (User Profile
+              // Photo upgrade) — rather than duplicating that picker sheet
+              // here too.
+              GestureDetector(
+                onTap: () => context.push('/profile/edit'),
+                child: ProfileAvatar(
+                  avatarUrl: profile.avatarUrl,
+                  displayName: profile.displayName,
+                  radius: 32,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

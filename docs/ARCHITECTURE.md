@@ -1083,3 +1083,150 @@ app_drawer_test.dart` (every hybrid-nav menu item is present, plus the
 profile header) — all passing the same brace/import static check used
 throughout this project (no Flutter SDK in this environment; see
 `mobile/README.md`).
+
+## 19. Official Logo & User Profile Photo upgrade
+
+The app's real logo replaces every placeholder brand mark, and users can
+now upload, replace, and remove a profile photo. One new migration
+(a private `avatars` Storage bucket), two new endpoints, and one new field
+on `GET /users/me`'s response; no changes to any existing endpoint's
+behavior beyond that added field.
+
+**The logo is one asset, wrapped in one widget.** `mobile/assets/images/
+nagarik_logo.png` is the exact file provided, registered in `pubspec.yaml`
+and never re-encoded or re-sized on disk — `Logo` (`shared/widgets/
+logo.dart`) is the single place every screen renders it from, always via
+`Image.asset(..., fit: BoxFit.contain)` in a square `size x size` box, so
+no caller can accidentally stretch or crop it regardless of what size they
+ask for. It's used on Login, Signup, the startup splash, the Home app bar
+(`PrimaryAppBar`'s new `showLogo` flag — Home only, not every screen, so
+the mark doesn't compete with each screen's own title), the drawer header,
+and About NAGARIK (via a new optional `header` slot on
+`StaticContentScreen`).
+
+**Splash/startup needed a real gap to fill.** Before this upgrade, `main()`
+awaited `Env.load()` and `initSupabase()` *before* calling `runApp` at
+all — so the very first frame Flutter ever drew was already the signed-in/
+signed-out router redirect; there was no moment to show a splash in.
+`main()` now calls `runApp` immediately with `NagarikApp`, which itself
+becomes a small state machine: it shows `SplashScreen` (just the logo,
+centered, on `AppColors.background`) while its own `initState` runs those
+same two awaits, then swaps to the real `MaterialApp.router` once both
+finish. `SplashScreen` deliberately depends on nothing but `Logo` and a
+static color — no theme, no router, no Supabase client — since it has to
+render correctly in the one window where none of those exist yet.
+
+**Profile photos live in Storage, not a database column — same pattern as
+`full_name`.** There is still no `profiles` table (see section 9). A photo
+is stored in a new private bucket, `avatars`
+(`backend/migrations/0005_avatars_bucket.sql`, RLS-scoped to
+`(storage.foldername(name))[1] = auth.uid()::text`, same convention as
+`report-images`), at a single fixed path per user —
+`<user_id>/avatar.<ext>` — because a profile photo is one slot that gets
+replaced or removed, not a growing list like report images. The
+*reference* to that path is kept in Supabase Auth's `user_metadata`
+(`avatar_path`), exactly where `full_name` already lives, because the
+backend has no other place to persist it and no way to write
+`user_metadata` itself (see the next point). `GET /users/me` signs that
+path fresh on every call (`profile_service.sign_avatar_url`) into the new
+`avatar_url` response field — best-effort, same philosophy as report image
+signing: a broken Storage call degrades to no photo, never a broken
+profile screen.
+
+**The backend only ever touches Storage bytes; the Flutter client owns
+`user_metadata`.** `POST /users/me/avatar` (multipart upload) and
+`DELETE /users/me/avatar` (`app/services/profile_service.py`) upload to and
+remove from the `avatars` bucket and return the new path — they cannot
+write `user_metadata` themselves, since that requires the *user's own*
+session, which the backend never holds (it only ever sees a bearer token,
+verified locally). So the Flutter client is the one that calls
+`AuthRepository.updateAvatarPath(path)` right after either call succeeds,
+mirroring `updateFullName`'s existing pattern exactly — including its
+`refreshSession()` follow-up, needed for the *current* JWT to carry the new
+claim immediately rather than on its next natural refresh.
+
+**A real bug this upgrade would otherwise have introduced: `updateUser`
+replaces `user_metadata`, it doesn't merge it.** Supabase Auth's `data`
+parameter on `updateUser()` overwrites the whole `user_metadata` object
+server-side rather than merging keys into it (confirmed against
+[supabase-py#1644](https://github.com/supabase/supabase-py/issues/1644),
+where the maintainers confirm this isn't client-specific). `updateFullName`
+had gotten away with calling `updateUser(data: {'full_name': ...})`
+directly only because `full_name` was the *only* key ever stored — adding
+`avatar_path` as a second key would have made every full-name edit
+silently erase the user's saved photo (and vice versa) the moment both
+existed. `AuthRepository` now routes both through one private
+`_updateMetadata()` that reads `currentUser?.userMetadata`, merges the
+requested change into a copy of it (removing a key entirely when the new
+value is `null`, so `updateAvatarPath(null)` actually clears
+`avatar_path` rather than storing a literal `null`), and pushes the merged
+map — `updateFullName` and `updateAvatarPath` are both now just one-line
+callers of that shared, correct implementation.
+
+**Replacing a photo cleans up the old one, including across a format
+change.** `profile_service.upload_avatar` lists whatever's already stored
+for the user before uploading (Storage has no "overwrite regardless of
+name" primitive across different extensions), uploads the new file with
+`upsert` (so replacing a `.jpg` with another `.jpg` overwrites cleanly),
+and only afterwards removes any leftover object under a *different*
+extension (a `.jpg` replaced by a `.png`, say) — ordered this way, and
+best-effort on the cleanup step, so a failed cleanup never costs the user
+their just-uploaded photo. `delete_avatar` is the same "list, then remove"
+shape and is idempotent, same philosophy as `unsave_report`: removing a
+photo that was never there is a no-op, not a 404.
+
+**Edit Profile is the one place to change it; Profile and the drawer just
+display it.** A small camera-badge button on Edit Profile's avatar opens a
+bottom sheet — Take Photo / Choose from Gallery / Remove Photo (the last
+only shown when a photo exists) — backed by the same `image_picker` already
+used for report photos, downscaled client-side (`maxWidth: 1024,
+imageQuality: 85`) to stay comfortably under the backend's 5 MB cap without
+a separate compression step. `ProfileAvatar` (`shared/widgets/
+profile_avatar.dart`) is the one widget that decides "photo or initial
+fallback" — used on Edit Profile, the Profile tab (tapping it also opens
+Edit Profile, rather than duplicating the picker sheet there), and the
+drawer header — so a missing photo, a still-loading one, and a broken
+signed URL all resolve to the same initial-letter avatar everywhere, never
+a broken-image icon.
+
+**The drawer header changed shape: brand row on top, account info below,
+one `DrawerHeader` instead of `UserAccountsDrawerHeader`.** Section 18's
+drawer used Flutter's built-in `UserAccountsDrawerHeader` for the
+signed-in citizen's name/email. That widget has exactly one picture slot,
+which this upgrade needs for the user's own photo (`ProfileAvatar`) — so
+the NAGARIK brand mark (`Logo` + wordmark) needed a place of its own rather
+than competing for that slot. The header is now a plain `DrawerHeader`
+with a small brand row at the top and the avatar/name/email row below it;
+every menu item below is unchanged.
+
+**App icons: configured, not generated — this repository has no platform
+folders yet.** `pubspec.yaml` gains a `flutter_launcher_icons:` block
+pointing at the same `nagarik_logo.png`, covering Android, iOS, web,
+macOS, and Windows. `flutter_launcher_icons` writes generated icons into
+each platform's own folder (`android/`, `ios/`, etc.) — this repository has
+never been through `flutter create` and has none of them, so there's
+nothing yet for the tool to write into. Running `flutter create .` once
+(needed before this project can be built for any platform regardless of
+this upgrade) followed by `dart run flutter_launcher_icons` is a one-time
+step left for whoever first builds a real app binary — see
+`mobile/README.md`'s "App icons" section.
+
+**Verification:** backend — `tests/test_profile_avatar.py` (12 new tests:
+upload, replace under the same extension, replace under a different
+extension with old-file cleanup, unsupported type, over-size, empty file,
+storage-failure 502, unauthenticated upload/delete, delete with/without a
+prior upload, per-user isolation) and two new tests added to
+`tests/test_users.py` (`avatar_url` absent/null by default, signed
+correctly when `avatar_path` is set) plus the existing suite, 90 total, all passing,
+`ruff check` clean. Mobile — `test/logo_test.dart` (asset path, default and
+custom sizing, optional corner clipping, the splash screen), `test/
+profile_avatar_test.dart` (initial-letter fallback, empty-URL and
+empty-name edge cases, custom radius), and two new cases in `test/
+profile_settings_test.dart` (`UserProfile.fromJson` parsing `avatar_url`)
+— all passing the same brace/import static check used throughout this
+project (no Flutter SDK in this environment; see `mobile/README.md`).
+`AuthRepository`'s metadata-merge fix has no automated test — this
+codebase has no precedent for mocking the Supabase Auth SDK itself (every
+existing `AuthRepository` method is a thin, untested pass-through to it),
+so this was verified by code review instead; it's called out here so a
+future change to `_updateMetadata` gets the same scrutiny.

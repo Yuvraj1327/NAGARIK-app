@@ -9,6 +9,7 @@ class ApiEndpoints {
 
   static const String health = '/health';
   static const String currentUser = '/users/me';
+  static const String myAvatar = '/users/me/avatar';
   static const String reports = '/reports';
   static const String reportStats = '/reports/stats';
   static const String reportMarkers = '/reports/markers';
