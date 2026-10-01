@@ -1230,3 +1230,135 @@ codebase has no precedent for mocking the Supabase Auth SDK itself (every
 existing `AuthRepository` method is a thin, untested pass-through to it),
 so this was verified by code review instead; it's called out here so a
 future change to `_updateMetadata` gets the same scrutiny.
+
+## 20. UI Polish & Motion Upgrade
+
+A visual/UX pass across the whole Flutter app — no backend change, no
+business-logic change, no navigation/route-structure change, and no change
+to `AppColors` (the brand palette stays exactly what it was). The brief was
+"make NAGARIK look like a polished, premium, production-level civic app"
+through typography, spacing, layout, components, motion, and visual
+hierarchy — this section covers the new primitives that upgrade is built
+from and how they're wired into the nine screens it touches (Home, Search,
+Profile, My Reports, Report Details, Report Issue, Settings, the sidebar/
+drawer, and Login/Signup), plus the Saved Reports, Edit Profile, and
+static-content (Privacy/Terms/About/Help) screens that share those
+screens' components and got the same pass for consistency.
+
+**New shared primitives (`mobile/lib/shared/widgets/`), all dependency-free**
+— plain `AnimationController`/`TweenAnimationBuilder`-style Flutter APIs,
+continuing this codebase's standing "avoid unnecessary packages" precedent
+(`app_typography.dart`'s own doc comment) rather than reaching for an
+animation or shimmer package:
+
+- **`animations/fade_slide_in.dart` — `FadeSlideIn`.** A one-shot fade +
+  slight upward-slide entrance, with an optional `delay` so a list of them
+  can be staggered (`delay: Duration(milliseconds: 40 * index)`). Used for
+  every section on Home, every report-card list item (Home's Nearby/Recent,
+  Search results, My Reports, Saved Reports), the static-content sections,
+  and the Login/Signup/Edit Profile forms.
+- **`animations/pressable_scale.dart` — `PressableScale`.** A small
+  (default 0.97×) scale-down while pressed, for "buttons and interactive
+  elements should have small scale/press feedback". Deliberately built on a
+  `Listener` rather than a `GestureDetector`, so it only *observes* raw
+  pointer events and never joins the gesture arena — it can wrap a child
+  that already owns its own tap handling (`InkWell`, `ElevatedButton`,
+  `FloatingActionButton`) without competing with it or needing `onTap`
+  duplicated. Wired into `AppCard` (whenever `onTap` is set) and `AppButton`
+  (every variant) centrally, so every card and every button in the app
+  picked it up for free — plus the bottom nav's "Report Issue" FAB directly.
+- **`shared/widgets/skeleton.dart` — `SkeletonBox` / `SkeletonReportCard` /
+  `SkeletonReportList` / `SkeletonReportRow` / `SkeletonStatsStrip`.** A
+  pulsing (opacity-tweened) placeholder block, and report-card/stats-strip
+  shaped compositions of it — this project's dependency-free stand-in for a
+  `shimmer` package. Replaces a bare spinner on every report-list loading
+  state (Home's Nearby Issues strip and Recent Reports list, Search
+  results, My Reports, Saved Reports) and the Profile stats strip, so a
+  loading screen already hints at the shape of what's coming.
+- **`core/routing/page_transitions.dart` — `fadeSlidePage`.** A shared
+  `CustomTransitionPage` (fade + a 4%-of-screen-height upward slide, 260ms)
+  used by every `GoRoute` pushed on the root navigator in `app_router.dart`
+  (`pageBuilder:` instead of `builder:`) — login/signup, report create/
+  detail, edit profile, saved reports, settings, help, the legal pages, and
+  about. Deliberately **not** applied to the four `StatefulShellRoute` tab
+  routes (Home/Search/My Reports/Profile), which must keep their existing
+  instant `IndexedStack` tab switch — see "maintain existing navigation" in
+  the brief. The bottom nav bar itself already animates its selection
+  indicator (Material 3's built-in `NavigationBar` behavior); it additionally
+  gained an explicit elevation/shadow (`AppTheme`'s `navigationBarTheme`) so
+  it reads as a floating surface rather than a flat strip.
+- **`shared/widgets/responsive_center.dart` — `ResponsiveCenter`.** Centers
+  its child and caps its width (640px for lists/detail pages, 480px for the
+  auth/edit-profile forms) on a wide viewport. On an ordinary phone-width
+  viewport the cap is never reached, so this is a pure no-op there — it's
+  how "make the UI responsive for mobile, web and macOS" is satisfied
+  without a second, parallel desktop layout to maintain: every screen's
+  `body` is wrapped in it, so a browser tab or a resized macOS window gets a
+  comfortably centered column instead of text stretched edge-to-edge,
+  while phone layouts are pixel-identical to before.
+
+**Design-system tokens, not a redesign.** `AppColors` is untouched —
+`AppTypography.textTheme`/`darkTextTheme` (the only files changed for
+color-adjacent reasons touch weight/spacing/line-height, never a color
+value) gained heavier heading weights (headlines w700→w800, titles w600→
+w700), slightly tightened heading letter-spacing (-0.1 to -0.4), more
+line-height on body copy for readability, and two new entries
+(`labelMedium`/`labelSmall`) that didn't exist before — picked up
+immediately by `CategoryGrid`'s tile labels, which read noticeably bolder
+now purely from the theme change. `AppTheme` gained `splashFactory:
+InkRipple.splashFactory` (a plainer, less "busy" ripple than Material 3's
+default ink-sparkle at this app's density), `scrolledUnderElevation: 0` on
+both app bars (no color-shifting tint when a list scrolls under them), and
+an explicit elevation/shadow/`surfaceTintColor: Colors.transparent` on
+buttons and the nav bar — `surfaceTintColor: Colors.transparent` everywhere
+elevation increased is what keeps Material 3's automatic surface-tint
+overlay from quietly shifting `AppColors.surface`'s exact shade, which
+would have broken "do not redesign the color theme" the moment elevation
+went above zero.
+
+**`AppCard` gained a soft drop shadow and press feedback; nothing else
+about it changed.** Previously a flat `elevation: 0` bordered box; now
+wrapped in a `Container` with a soft `BoxShadow` (6px offset, 16px blur,
+~6% opacity in light mode) for the "premium cards, subtle elevation" ask,
+and — only when `onTap` is set — a `PressableScale`. Every screen that
+already used `AppCard` (and everything built on it: `ReportCard`,
+`SettingsSection`, the Profile stats strip, `CategoryGrid`'s tiles) picked
+this up automatically with no per-screen changes needed, which is exactly
+why this project keeps one shared `AppCard` instead of each screen styling
+its own container.
+
+**`EmptyView`/`ErrorView` gained a soft icon backdrop and an entrance
+animation; their constructors and call sites are unchanged.** The bare
+icon is now centered in a large, lightly-tinted circle (a neutral
+border-tint for `EmptyView`, `AppColors.error` at 10% for `ErrorView`) —
+every existing `EmptyView.noReports()`/`.noSavedReports()`/`.searchNoResults()`/
+`ErrorView.forError(...)` call site anywhere in the app picked this up for
+free, same reasoning as `AppCard` above.
+
+**Screen-by-screen motion:** Home's six sections (greeting, search
+shortcut, Nearby Issues, category grid, Recent Reports, the Report-Issue
+CTA) each fade/slide in with a small staggered delay on first build; every
+report-card list (Home's two sections, Search, My Reports, Saved Reports)
+staggers its *items* the same way; the category grid staggers its seven
+tiles; the create-report Stepper's five step bodies each get a one-shot
+fade-in (the Stepper's own built-in `AnimatedContainer` still handles
+expanding/collapsing between steps — this upgrade didn't touch that
+mechanism); Login/Signup's logo+tagline header fades/slides in as one
+group; the drawer header does the same, slid in from the left edge.
+
+**Verification:** no Flutter SDK is available in this sandbox (as in every
+previous step — see `mobile/README.md`), so this upgrade was verified the
+same way every prior mobile change in this project has been: the
+project's own static checker (`dart_check.py`, brace/paren/bracket balance
+plus `package:nagarik/...` import resolution) run across every file in
+`lib/` and `test/` after each file was edited and again across the whole
+tree at the end — all passing — plus careful manual review of every
+inserted widget-tree nesting change (several edits add or remove a wrapper
+widget around an existing subtree, which is the easiest place to
+accidentally mismatch a closing paren) and of every `const` list that now
+contains the new widgets (`FadeSlideIn`/`SkeletonBox`'s constructors are
+`const`-compatible specifically so they can appear inside the existing
+`const [...]` children lists without forcing those lists to become
+non-const). No existing test file needed changes — this upgrade doesn't
+touch any constructor signature, field, or behavior any existing test
+asserts on, only internal visuals of already-tested widgets.

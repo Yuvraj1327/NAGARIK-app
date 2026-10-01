@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 
 /// One block of a [StaticContentScreen]: an optional heading followed by a
 /// paragraph of body text.
@@ -38,25 +40,30 @@ class StaticContentScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: PrimaryAppBar(title: title),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        itemCount: sections.length + (header != null ? 1 : 0),
-        separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, index) {
-          final hasHeader = header != null;
-          if (hasHeader && index == 0) return header!;
-          final section = sections[hasHeader ? index - 1 : index];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (section.heading != null) ...[
-                Text(section.heading!, style: theme.textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.xs),
-              ],
-              Text(section.body, style: theme.textTheme.bodyMedium),
-            ],
-          );
-        },
+      body: ResponsiveCenter(
+        child: ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          itemCount: sections.length + (header != null ? 1 : 0),
+          separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, index) {
+            final hasHeader = header != null;
+            if (hasHeader && index == 0) return header!;
+            final section = sections[hasHeader ? index - 1 : index];
+            return FadeSlideIn(
+              delay: Duration(milliseconds: 30 * index),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (section.heading != null) ...[
+                    Text(section.heading!, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.xs),
+                  ],
+                  Text(section.body, style: theme.textTheme.bodyMedium),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -8,10 +8,12 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
-import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
+import 'package:nagarik/shared/widgets/skeleton.dart';
 
 /// My Reports — a primary bottom-nav tab (Report Sharing, Saved Reports &
 /// Final Feature Polish upgrade moved it here from a screen pushed off
@@ -53,11 +55,12 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
       drawer: const AppDrawer(),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
+        child: ResponsiveCenter(
         child: myReportsAsync.when(
           loading: () => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             children: const [
-              SizedBox(height: 320, child: LoadingView(message: 'Loading your reports…')),
+              SkeletonReportList(count: 4),
             ],
           ),
           error: (error, stackTrace) => ListView(
@@ -122,18 +125,21 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                               const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final report = filtered[index];
-                            return ReportCard(
-                              title: report.category.label,
-                              description: report.description,
-                              category: report.category,
-                              status: report.status,
-                              city: report.city,
-                              pinCode: report.pinCode,
-                              referenceId: report.referenceId,
-                              imageUrl:
-                                  report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
-                              date: report.createdAt,
-                              onTap: () => context.push('/report/${report.id}'),
+                            return FadeSlideIn(
+                              delay: Duration(milliseconds: 30 * index),
+                              child: ReportCard(
+                                title: report.category.label,
+                                description: report.description,
+                                category: report.category,
+                                status: report.status,
+                                city: report.city,
+                                pinCode: report.pinCode,
+                                referenceId: report.referenceId,
+                                imageUrl:
+                                    report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
+                                date: report.createdAt,
+                                onTap: () => context.push('/report/${report.id}'),
+                              ),
                             );
                           },
                         ),
@@ -141,6 +147,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
               ],
             );
           },
+        ),
         ),
       ),
     );

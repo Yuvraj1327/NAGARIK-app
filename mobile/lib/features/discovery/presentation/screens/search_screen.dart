@@ -14,11 +14,14 @@ import 'package:nagarik/features/reports/presentation/providers/reports_provider
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_map.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_marker_preview_sheet.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
+import 'package:nagarik/shared/widgets/skeleton.dart';
 
 /// Roughly the geographic center of India — only ever used as the map's
 /// starting point when a search has results but no device location to
@@ -172,7 +175,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'Search'),
       drawer: const AppDrawer(),
-      body: Column(
+      body: ResponsiveCenter(
+        child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -321,6 +325,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -380,7 +385,7 @@ class _ListResults extends StatelessWidget {
       future: resultsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingView(message: 'Searching…');
+          return const SkeletonReportList(count: 4);
         }
         if (snapshot.hasError) {
           return ErrorView.forError(
@@ -400,17 +405,20 @@ class _ListResults extends StatelessWidget {
           separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.sm),
           itemBuilder: (context, index) {
             final report = page.items[index];
-            return ReportCard(
-              title: report.category.label,
-              description: report.description,
-              category: report.category,
-              status: report.status,
-              city: report.city,
-              pinCode: report.pinCode,
-              referenceId: report.referenceId,
-              imageUrl: report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
-              date: report.createdAt,
-              onTap: () => context.push('/report/${report.id}'),
+            return FadeSlideIn(
+              delay: Duration(milliseconds: 30 * index),
+              child: ReportCard(
+                title: report.category.label,
+                description: report.description,
+                category: report.category,
+                status: report.status,
+                city: report.city,
+                pinCode: report.pinCode,
+                referenceId: report.referenceId,
+                imageUrl: report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
+                date: report.createdAt,
+                onTap: () => context.push('/report/${report.id}'),
+              ),
             );
           },
         );

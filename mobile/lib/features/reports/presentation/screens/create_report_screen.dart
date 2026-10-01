@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,8 +16,10 @@ import 'package:nagarik/features/reports/data/reports_repository.dart';
 import 'package:nagarik/features/reports/domain/report_draft.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 
 /// The full report-submission flow: Category -> Description -> Location ->
 /// Photos -> Review -> Submit.
@@ -99,9 +102,14 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
 
       if (!mounted) return;
       context.go('/home');
-    } on ApiException catch (error) {
+    } on DioException catch (error) {
       if (!mounted) return;
-      _showMessage(error.message);
+      final apiError = error.error;
+      _showMessage(
+        apiError is ApiException
+            ? apiError.message
+            : 'Could not submit your report. Please try again.',
+      );
     } catch (_) {
       if (!mounted) return;
       _showMessage('Could not submit your report. Please try again.');
@@ -114,7 +122,8 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'Report an Issue'),
-      body: Stepper(
+      body: ResponsiveCenter(
+        child: Stepper(
         type: StepperType.vertical,
         currentStep: _currentStep,
         onStepContinue: _isSubmitting ? null : _onStepContinue,
@@ -143,40 +152,47 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
             title: const Text('Category'),
             isActive: _currentStep >= 0,
             state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-            content: _CategoryStep(
-              selected: _draft.category,
-              onSelected: (category) => setState(() => _draft.category = category),
+            content: FadeSlideIn(
+              child: _CategoryStep(
+                selected: _draft.category,
+                onSelected: (category) => setState(() => _draft.category = category),
+              ),
             ),
           ),
           Step(
             title: const Text('Description'),
             isActive: _currentStep >= 1,
             state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-            content: _DescriptionStep(formKey: _descriptionFormKey, draft: _draft),
+            content: FadeSlideIn(
+              child: _DescriptionStep(formKey: _descriptionFormKey, draft: _draft),
+            ),
           ),
           Step(
             title: const Text('Location'),
             isActive: _currentStep >= 2,
             state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-            content: _LocationStep(
-              formKey: _locationFormKey,
-              draft: _draft,
-              locationService: ref.read(locationServiceProvider),
+            content: FadeSlideIn(
+              child: _LocationStep(
+                formKey: _locationFormKey,
+                draft: _draft,
+                locationService: ref.read(locationServiceProvider),
+              ),
             ),
           ),
           Step(
             title: const Text('Photos'),
             isActive: _currentStep >= 3,
             state: _currentStep > 3 ? StepState.complete : StepState.indexed,
-            content: _ImagesStep(draft: _draft),
+            content: FadeSlideIn(child: _ImagesStep(draft: _draft)),
           ),
           Step(
             title: const Text('Review'),
             isActive: _currentStep >= 4,
             state: StepState.indexed,
-            content: _ReviewStep(draft: _draft),
+            content: FadeSlideIn(child: _ReviewStep(draft: _draft)),
           ),
         ],
+        ),
       ),
     );
   }

@@ -5,9 +5,11 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
 import 'package:nagarik/shared/widgets/logo.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 
 /// Login screen, wired to real Supabase Auth (Step 3).
 ///
@@ -54,7 +56,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: ResponsiveCenter(
+          maxWidth: 480,
+          child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Form(
             key: _formKey,
@@ -62,12 +66,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Center(child: Logo(size: 96)),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'A Civic Good Initiative',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                FadeSlideIn(
+                  offset: const Offset(0, 0.12),
+                  child: Column(
+                    children: [
+                      const Center(child: Logo(size: 96)),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'A Civic Good Initiative',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 AppTextField(
@@ -118,6 +129,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

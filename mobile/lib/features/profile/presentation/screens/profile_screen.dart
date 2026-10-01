@@ -9,14 +9,17 @@ import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
 import 'package:nagarik/shared/widgets/profile_avatar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/settings_list_tile.dart';
 import 'package:nagarik/shared/widgets/settings_section.dart';
+import 'package:nagarik/shared/widgets/skeleton.dart';
 import 'package:nagarik/shared/widgets/stat_tile.dart';
 
 /// Profile tab. The app-wide auth gate (`core/routing/app_router.dart`)
@@ -94,98 +97,102 @@ class _SignedInView extends ConsumerWidget {
         onRetry: () => ref.invalidate(currentUserProfileProvider),
         fallbackMessage: 'Could not load your profile. Please try again.',
       ),
-      data: (profile) => ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        children: [
-          Row(
-            children: [
-              // Tapping the photo jumps to Edit Profile — the one place
-              // that actually offers upload/replace/remove (User Profile
-              // Photo upgrade) — rather than duplicating that picker sheet
-              // here too.
-              GestureDetector(
-                onTap: () => context.push('/profile/edit'),
-                child: ProfileAvatar(
-                  avatarUrl: profile.avatarUrl,
-                  displayName: profile.displayName,
-                  radius: 32,
+      data: (profile) => ResponsiveCenter(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            FadeSlideIn(
+              child: Row(
+                children: [
+                  // Tapping the photo jumps to Edit Profile — the one place
+                  // that actually offers upload/replace/remove (User Profile
+                  // Photo upgrade) — rather than duplicating that picker sheet
+                  // here too.
+                  GestureDetector(
+                    onTap: () => context.push('/profile/edit'),
+                    child: ProfileAvatar(
+                      avatarUrl: profile.avatarUrl,
+                      displayName: profile.displayName,
+                      radius: 32,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
+                        if (profile.email != null)
+                          Text(profile.email!, style: Theme.of(context).textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const FadeSlideIn(delay: Duration(milliseconds: 60), child: _ReportStatsStrip()),
+            const SettingsSection(
+              title: 'My Activity',
+              tiles: [
+                _MyReportsTile(),
+                _SavedReportsTile(),
+              ],
+            ),
+            SettingsSection(
+              title: 'Settings',
+              tiles: [
+                SettingsListTile(
+                  icon: Icons.edit_outlined,
+                  title: 'Edit Profile',
+                  onTap: () => context.push('/profile/edit'),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
-                    if (profile.email != null)
-                      Text(profile.email!, style: Theme.of(context).textTheme.bodyMedium),
-                  ],
+                SettingsListTile(
+                  icon: Icons.tune,
+                  title: 'Preferences',
+                  onTap: () => context.push('/settings'),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          const _ReportStatsStrip(),
-          const SettingsSection(
-            title: 'My Activity',
-            tiles: [
-              _MyReportsTile(),
-              _SavedReportsTile(),
-            ],
-          ),
-          SettingsSection(
-            title: 'Settings',
-            tiles: [
-              SettingsListTile(
-                icon: Icons.edit_outlined,
-                title: 'Edit Profile',
-                onTap: () => context.push('/profile/edit'),
-              ),
-              SettingsListTile(
-                icon: Icons.tune,
-                title: 'Preferences',
-                onTap: () => context.push('/settings'),
-              ),
-              SettingsListTile(
-                icon: Icons.help_outline,
-                title: 'Help & Support',
-                onTap: () => context.push('/help'),
-              ),
-            ],
-          ),
-          SettingsSection(
-            title: 'Legal',
-            tiles: [
-              SettingsListTile(
-                icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
-                onTap: () => context.push('/legal/privacy'),
-              ),
-              SettingsListTile(
-                icon: Icons.description_outlined,
-                title: 'Terms & Conditions',
-                onTap: () => context.push('/legal/terms'),
-              ),
-              SettingsListTile(
-                icon: Icons.info_outline,
-                title: 'About NAGARIK',
-                onTap: () => context.push('/about'),
-              ),
-            ],
-          ),
-          SettingsSection(
-            title: 'Account',
-            tiles: [
-              SettingsListTile(
-                icon: Icons.logout,
-                title: 'Logout',
-                isDestructive: true,
-                onTap: () => confirmAndLogout(context, ref),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-        ],
+                SettingsListTile(
+                  icon: Icons.help_outline,
+                  title: 'Help & Support',
+                  onTap: () => context.push('/help'),
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Legal',
+              tiles: [
+                SettingsListTile(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'Privacy Policy',
+                  onTap: () => context.push('/legal/privacy'),
+                ),
+                SettingsListTile(
+                  icon: Icons.description_outlined,
+                  title: 'Terms & Conditions',
+                  onTap: () => context.push('/legal/terms'),
+                ),
+                SettingsListTile(
+                  icon: Icons.info_outline,
+                  title: 'About NAGARIK',
+                  onTap: () => context.push('/about'),
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Account',
+              tiles: [
+                SettingsListTile(
+                  icon: Icons.logout,
+                  title: 'Logout',
+                  isDestructive: true,
+                  onTap: () => confirmAndLogout(context, ref),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
       ),
     );
   }
@@ -209,7 +216,7 @@ class _ReportStatsStrip extends ConsumerWidget {
         child: statsAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-            child: LoadingView(),
+            child: SkeletonStatsStrip(),
           ),
           error: (error, stackTrace) => ErrorView.forError(
             error,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 
 /// Standard full-area error state: an icon, a message, and an optional
@@ -57,21 +58,32 @@ class ErrorView extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 40, color: AppColors.error),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            if (onRetry != null) ...[
-              const SizedBox(height: AppSpacing.md),
-              AppButton(label: 'Retry', onPressed: onRetry, expand: false),
+        child: FadeSlideIn(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 32, color: AppColors.error),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppButton(label: 'Retry', onPressed: onRetry, expand: false),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

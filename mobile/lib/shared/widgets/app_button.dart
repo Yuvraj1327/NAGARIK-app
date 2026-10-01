@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
+
 enum AppButtonVariant { primary, secondary, outlined, text }
 
 /// The one button widget the whole app should use, so every screen gets
@@ -53,7 +55,11 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.text => TextButton(onPressed: onTap, child: child),
     };
 
-    if (!expand) return button;
-    return SizedBox(width: double.infinity, height: 48, child: button);
+    final sized = expand ? SizedBox(width: double.infinity, height: 48, child: button) : button;
+
+    // UI Polish upgrade: small press-down scale feedback, disabled while
+    // loading/disabled (nothing to give feedback for — `onTap` is already
+    // null in that case).
+    return PressableScale(enabled: onTap != null, child: sized);
   }
 }

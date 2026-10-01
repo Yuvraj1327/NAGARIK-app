@@ -8,10 +8,12 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
-import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
+import 'package:nagarik/shared/widgets/skeleton.dart';
 
 /// Profile -> My Activity -> Saved Reports (also reachable from the app
 /// drawer). Report Sharing & Saved Reports upgrade: backed for real by
@@ -36,12 +38,11 @@ class SavedReportsScreen extends ConsumerWidget {
       appBar: const PrimaryAppBar(title: 'Saved Reports'),
       body: RefreshIndicator(
         onRefresh: () => _onRefresh(ref),
+        child: ResponsiveCenter(
         child: savedReportsAsync.when(
           loading: () => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            children: const [
-              SizedBox(height: 320, child: LoadingView(message: 'Loading saved reports…')),
-            ],
+            children: const [SkeletonReportList(count: 3)],
           ),
           error: (error, stackTrace) => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -72,9 +73,13 @@ class SavedReportsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: page.items.length,
               separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) => _SavedReportCard(report: page.items[index]),
+              itemBuilder: (context, index) => FadeSlideIn(
+                delay: Duration(milliseconds: 30 * index),
+                child: _SavedReportCard(report: page.items[index]),
+              ),
             );
           },
+        ),
         ),
       ),
     );

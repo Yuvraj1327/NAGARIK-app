@@ -8,12 +8,14 @@ import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
 import 'package:nagarik/shared/widgets/profile_avatar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 
 /// Profile -> Edit Profile.
 ///
@@ -191,11 +193,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           }
           final hasPhoto = profile.avatarUrl != null;
 
-          return Padding(
+          return ResponsiveCenter(
+            maxWidth: 480,
+            child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Form(
               key: _formKey,
-              child: Column(
+              child: FadeSlideIn(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
@@ -278,8 +282,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     onPressed: _handleSave,
                   ),
                 ],
-              ),
+              )),
             ),
+          ),
           );
         },
       ),

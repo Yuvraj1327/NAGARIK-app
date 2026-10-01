@@ -5,9 +5,11 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
 import 'package:nagarik/shared/widgets/logo.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 
 /// Signup screen, wired to real Supabase Auth (Step 3).
 ///
@@ -75,20 +77,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         leading: BackButton(onPressed: () => context.pop()),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: ResponsiveCenter(
+          maxWidth: 480,
+          child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Center(child: Logo(size: 72)),
-                const SizedBox(height: AppSpacing.md),
-                Text('Create your account', style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Join NAGARIK to report and track civic issues.',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                FadeSlideIn(
+                  offset: const Offset(0, 0.12),
+                  child: Column(
+                    children: [
+                      const Center(child: Logo(size: 72)),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Create your account',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Join NAGARIK to report and track civic issues.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 AppTextField(
@@ -160,6 +174,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

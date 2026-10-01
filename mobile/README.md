@@ -60,6 +60,13 @@ URL, and an empty display name) and custom radius; two cases added to
 `profile_settings_test.dart` cover `UserProfile.fromJson` parsing the new
 `avatar_url` field.
 
+**UI Polish & Motion Upgrade:** purely visual — no constructor, field, or
+widget behavior any existing test asserts on changed, so no test file
+needed updating. See the "UI Polish & Motion Upgrade" section near the end
+of this file and `docs/ARCHITECTURE.md` section 20 for what changed and how
+it was verified (the same static-check approach as every prior step —
+there is still no Flutter SDK in this environment).
+
 ## Project layout
 
 ```
@@ -77,7 +84,8 @@ lib/
 │   │   ├── api_exception.dart            # normalized error type
 │   │   └── supabase_client_provider.dart # Supabase Auth init (Auth only, see docs/ARCHITECTURE.md)
 │   ├── routing/
-│   │   ├── app_router.dart               # go_router config: shell + top-level routes
+│   │   ├── app_router.dart               # go_router config: shell + top-level routes (pushed routes use fadeSlidePage)
+│   │   ├── page_transitions.dart         # fadeSlidePage: shared fade+slide CustomTransitionPage (UI Polish upgrade)
 │   │   ├── scaffold_with_nav_bar.dart    # bottom-nav shell (Home/Search/My Reports/Profile) + Report FAB
 │   │   └── app_drawer.dart               # AppDrawer: the full feature menu, on every bottom-nav tab
 │   ├── startup/splash_screen.dart    # SplashScreen: the logo, shown while app.dart loads env/Supabase
@@ -136,17 +144,22 @@ lib/
 │               ├── report_map.dart                # OpenStreetMap-tiled map, pins colored by status (Search's Map view)
 │               └── report_marker_preview_sheet.dart # compact preview on marker tap; lazily fetches full detail, links to Report Detail
 └── shared/widgets/
-    ├── app_button.dart          # AppButton (primary/secondary/outlined/text, loading state)
+    ├── animations/
+    │   ├── fade_slide_in.dart   # FadeSlideIn: one-shot fade+slide entrance, optional stagger delay (UI Polish upgrade)
+    │   └── pressable_scale.dart # PressableScale: small press-down scale via Listener, used by AppCard/AppButton/the FAB
+    ├── skeleton.dart            # SkeletonBox/SkeletonReportCard/SkeletonReportList/SkeletonReportRow/SkeletonStatsStrip (UI Polish upgrade)
+    ├── responsive_center.dart   # ResponsiveCenter: caps content width on wide (web/macOS) viewports, no-op on phone width
+    ├── app_button.dart          # AppButton (primary/secondary/outlined/text, loading state, press-scale feedback)
     ├── app_text_field.dart      # AppTextField
-    ├── app_card.dart            # AppCard (brightness-aware: light mode unchanged, adds dark support)
+    ├── app_card.dart            # AppCard (brightness-aware; soft drop shadow + press-scale feedback)
     ├── status_badge.dart        # StatusBadge (colored by ReportStatus)
     ├── status_timeline.dart     # StatusTimeline (vertical progress timeline, Report Detail)
     ├── primary_app_bar.dart     # PrimaryAppBar (showLogo: true on Home's app bar)
     ├── logo.dart                # Logo: the one official NAGARIK mark, everywhere it appears
     ├── profile_avatar.dart      # ProfileAvatar: the user's photo, or an initial-letter fallback
     ├── loading_view.dart        # LoadingView
-    ├── error_view.dart          # ErrorView (message + optional Retry); ErrorView.forError distinguishes network vs. API errors
-    ├── empty_view.dart          # EmptyView (icon + title + message + optional action); .noReports/.noSavedReports/.noNearbyReports/.searchNoResults presets
+    ├── error_view.dart          # ErrorView (message + optional Retry); ErrorView.forError distinguishes network vs. API errors; soft icon backdrop + entrance fade
+    ├── empty_view.dart          # EmptyView (icon + title + message + optional action); .noReports/.noSavedReports/.noNearbyReports/.searchNoResults presets; soft icon backdrop + entrance fade
     ├── section_header.dart      # SectionHeader (all-caps group label)
     ├── settings_list_tile.dart  # SettingsListTile (icon + title + trailing chevron/checkmark)
     ├── settings_section.dart    # SettingsSection (grouped SettingsListTiles in one card)
@@ -396,3 +409,38 @@ this upgrade, including why each backend addition was (or wasn't) needed.
 See `docs/ARCHITECTURE.md` section 19 for the full set of decisions behind
 this upgrade, including the Storage bucket/RLS design and why the backend
 never writes `user_metadata` itself.
+
+## UI Polish & Motion Upgrade
+
+A visual/UX pass across the whole app — no color, navigation, or
+backend/business-logic change. See `docs/ARCHITECTURE.md` section 20 for
+the full write-up; in short:
+
+- **New shared primitives** (`shared/widgets/animations/fade_slide_in.dart`,
+  `shared/widgets/animations/pressable_scale.dart`,
+  `shared/widgets/skeleton.dart`, `core/routing/page_transitions.dart`,
+  `shared/widgets/responsive_center.dart`) — all dependency-free, continuing
+  this project's "avoid unnecessary packages" precedent instead of adding
+  an animation or shimmer package.
+- **Stronger typography** — `AppTypography` gained heavier heading weights,
+  tighter heading letter-spacing, more body line-height, and two new
+  entries (`labelMedium`/`labelSmall`); `AppColors` is untouched.
+- **Premium cards & buttons** — `AppCard` gained a soft drop shadow;
+  `AppCard` (when tappable) and `AppButton` both gained a small press-down
+  scale via `PressableScale`, picked up automatically everywhere those
+  shared widgets are already used.
+- **Motion** — every pushed route (login/signup, report create/detail, edit
+  profile, saved reports, settings, help, legal, about) now fades + slides
+  in via `fadeSlidePage`; Home's sections and every report-card list
+  stagger in with `FadeSlideIn`; the bottom-nav tabs keep their existing
+  instant `IndexedStack` switch, unchanged.
+- **Skeleton loading states** — report lists and the Profile stats strip
+  show shaped placeholders (`SkeletonReportList`/`SkeletonReportRow`/
+  `SkeletonStatsStrip`) instead of a bare spinner while loading.
+- **Responsive** — every screen's body is wrapped in `ResponsiveCenter`, so
+  a browser tab or a resized macOS window gets a centered, width-capped
+  column instead of text stretched edge-to-edge; phone layouts are
+  unchanged (the cap is never reached at phone width).
+
+See `docs/ARCHITECTURE.md` section 20 for the complete rationale and the
+full list of touched screens.

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:nagarik/core/routing/go_router_refresh_stream.dart';
+import 'package:nagarik/core/routing/page_transitions.dart';
 import 'package:nagarik/core/routing/scaffold_with_nav_bar.dart';
 import 'package:nagarik/features/auth/presentation/screens/login_screen.dart';
 import 'package:nagarik/features/auth/presentation/screens/signup_screen.dart';
@@ -74,26 +75,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // UI Polish upgrade: every route on the root navigator below uses
+      // `pageBuilder` + `fadeSlidePage` (core/routing/page_transitions.dart)
+      // instead of a plain `builder`, so pushing/popping any of these full-
+      // screen routes fades + slides in rather than Flutter's default
+      // platform transition — purely a transition change, every screen's
+      // own widget and the auth-gate `redirect` above are untouched.
       GoRoute(
         path: '/login',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const LoginScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const LoginScreen()),
       ),
       GoRoute(
         path: '/signup',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const SignupScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const SignupScreen()),
       ),
       GoRoute(
         path: '/report/create',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const CreateReportScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const CreateReportScreen()),
       ),
       GoRoute(
         path: '/report/:id',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ReportDetailScreen(
-          reportId: state.pathParameters['id']!,
+        pageBuilder: (context, state) => fadeSlidePage(
+          key: state.pageKey,
+          child: ReportDetailScreen(reportId: state.pathParameters['id']!),
         ),
       ),
       // Profile & Settings upgrade: all pushed full-screen on the root
@@ -102,37 +113,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/edit',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const EditProfileScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const EditProfileScreen()),
       ),
       GoRoute(
         path: '/profile/saved-reports',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const SavedReportsScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const SavedReportsScreen()),
       ),
       GoRoute(
         path: '/settings',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const SettingsScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const SettingsScreen()),
       ),
       GoRoute(
         path: '/help',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const HelpSupportScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const HelpSupportScreen()),
       ),
       GoRoute(
         path: '/legal/privacy',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const PrivacyPolicyScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const PrivacyPolicyScreen()),
       ),
       GoRoute(
         path: '/legal/terms',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const TermsScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const TermsScreen()),
       ),
       GoRoute(
         path: '/about',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const AboutScreen(),
+        pageBuilder: (context, state) =>
+            fadeSlidePage(key: state.pageKey, child: const AboutScreen()),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

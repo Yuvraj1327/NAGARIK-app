@@ -11,9 +11,11 @@ import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/domain/report_share.dart';
 import 'package:nagarik/features/reports/domain/report_timeline.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/section_header.dart';
 import 'package:nagarik/shared/widgets/status_badge.dart';
 import 'package:nagarik/shared/widgets/status_timeline.dart';
@@ -138,7 +140,9 @@ class _ReportDetailBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return ListView(
+    return ResponsiveCenter(
+      child: FadeSlideIn(
+        child: ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
         if (report.imageUrls.isEmpty)
@@ -252,6 +256,8 @@ class _ReportDetailBody extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         StatusTimeline(stages: timelineStagesForStatus(report.status)),
       ],
+        ),
+      ),
     );
   }
 }

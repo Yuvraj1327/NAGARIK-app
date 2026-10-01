@@ -6,6 +6,7 @@ import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/logo.dart';
 import 'package:nagarik/shared/widgets/profile_avatar.dart';
 
@@ -57,58 +58,61 @@ class AppDrawer extends ConsumerWidget {
               AppSpacing.md,
               AppSpacing.sm,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Logo(size: 32),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      'NAGARIK',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.onPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Row(
-                  children: [
-                    ProfileAvatar(
-                      avatarUrl: profile?.avatarUrl,
-                      displayName: profile?.displayName ?? 'N',
-                      radius: 22,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            profile?.displayName ?? 'NAGARIK',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: AppColors.onPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (profile?.email != null)
+            child: FadeSlideIn(
+              offset: const Offset(-0.04, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Logo(size: 32),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        'NAGARIK',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.onPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      ProfileAvatar(
+                        avatarUrl: profile?.avatarUrl,
+                        displayName: profile?.displayName ?? 'N',
+                        radius: 22,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              profile!.email!,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              profile?.displayName ?? 'NAGARIK',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: AppColors.onPrimary,
+                                    fontWeight: FontWeight.w700,
                                   ),
                               overflow: TextOverflow.ellipsis,
                             ),
-                        ],
+                            if (profile?.email != null)
+                              Text(
+                                profile!.email!,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.onPrimary,
+                                    ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           ListTile(

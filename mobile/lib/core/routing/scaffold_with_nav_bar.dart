@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
+
 /// Shared scaffold for the four bottom-nav tabs (Home, Search, My Reports,
 /// Profile — Report Sharing, Saved Reports & Final Feature Polish upgrade
 /// added My Reports as the fourth primary destination, moved here from a
@@ -24,10 +26,14 @@ class ScaffoldWithNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/report/create'),
-        icon: const Icon(Icons.add_alert_outlined),
-        label: const Text('Report Issue'),
+      // UI Polish upgrade: small press-down scale feedback, matching every
+      // other tappable surface in the redesign (`AppCard`, `AppButton`).
+      floatingActionButton: PressableScale(
+        child: FloatingActionButton.extended(
+          onPressed: () => context.push('/report/create'),
+          icon: const Icon(Icons.add_alert_outlined),
+          label: const Text('Report Issue'),
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,

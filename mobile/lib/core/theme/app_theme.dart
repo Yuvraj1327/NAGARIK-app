@@ -23,14 +23,22 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       textTheme: AppTypography.textTheme,
+      // UI Polish upgrade: Material 3's default ink-sparkle splash reads as
+      // a little busy on filled buttons/cards at this app's scale — a plain
+      // ripple is the subtler, more "premium" feeling default, and it's a
+      // stable core Flutter API (not a type that has shifted between
+      // versions, unlike `CardTheme`; see `AppCard`'s own doc comment).
+      splashFactory: InkRipple.splashFactory,
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
           color: AppColors.textPrimary,
         ),
       ),
@@ -70,24 +78,35 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          elevation: 1,
+          shadowColor: const Color(0x332563EB),
+          surfaceTintColor: Colors.transparent,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary),
+          side: const BorderSide(color: AppColors.primary, width: 1.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: AppColors.surface,
         indicatorColor: Color(0xFFDCE8FF),
+        elevation: 3,
+        shadowColor: Color(0x1A0F172A),
+        surfaceTintColor: Colors.transparent,
+        height: 64,
       ),
       dividerTheme: const DividerThemeData(color: AppColors.border, thickness: 1),
       snackBarTheme: const SnackBarThemeData(
@@ -114,14 +133,17 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.darkBackground,
       textTheme: AppTypography.darkTextTheme,
+      splashFactory: InkRipple.splashFactory,
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.darkSurface,
         foregroundColor: AppColors.darkTextPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
           color: AppColors.darkTextPrimary,
         ),
       ),
@@ -161,24 +183,35 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          elevation: 1,
+          shadowColor: Colors.black45,
+          surfaceTintColor: Colors.transparent,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary),
+          side: const BorderSide(color: AppColors.primary, width: 1.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: AppColors.darkSurface,
         indicatorColor: Color(0xFF1E3A8A),
+        elevation: 3,
+        shadowColor: Color(0x40000000),
+        surfaceTintColor: Colors.transparent,
+        height: 64,
       ),
       dividerTheme: const DividerThemeData(color: AppColors.darkBorder, thickness: 1),
       snackBarTheme: const SnackBarThemeData(

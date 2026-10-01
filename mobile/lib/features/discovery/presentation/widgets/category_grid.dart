@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 
 /// Home's "Explore by Category" shortcuts — one tile per
@@ -26,8 +27,11 @@ class CategoryGrid extends StatelessWidget {
       crossAxisSpacing: AppSpacing.sm,
       childAspectRatio: 0.85,
       children: [
-        for (final category in ReportCategory.values)
-          _CategoryTile(category: category, onTap: () => onCategoryTap(category)),
+        for (final (index, category) in ReportCategory.values.indexed)
+          FadeSlideIn(
+            delay: Duration(milliseconds: 25 * index),
+            child: _CategoryTile(category: category, onTap: () => onCategoryTap(category)),
+          ),
       ],
     );
   }

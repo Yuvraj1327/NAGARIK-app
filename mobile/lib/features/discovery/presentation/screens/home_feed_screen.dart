@@ -15,12 +15,14 @@ import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
-import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
+import 'package:nagarik/shared/widgets/skeleton.dart';
 
 /// A directly-showable message for the Nearby Issues section's error state
 /// — [LocationException] and [ApiException] both already carry one
@@ -72,22 +74,24 @@ class HomeFeedScreen extends ConsumerWidget {
       drawer: const AppDrawer(),
       body: RefreshIndicator(
         onRefresh: () => _onRefresh(ref),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: const [
-            _GreetingAndLocation(),
-            SizedBox(height: AppSpacing.md),
-            _SearchShortcut(),
-            SizedBox(height: AppSpacing.lg),
-            _NearbyIssuesSection(),
-            SizedBox(height: AppSpacing.lg),
-            _CategorySection(),
-            SizedBox(height: AppSpacing.lg),
-            _RecentReportsSection(),
-            SizedBox(height: AppSpacing.lg),
-            _ReportIssueCta(),
-          ],
+        child: ResponsiveCenter(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: const [
+              FadeSlideIn(child: _GreetingAndLocation()),
+              SizedBox(height: AppSpacing.md),
+              FadeSlideIn(delay: Duration(milliseconds: 60), child: _SearchShortcut()),
+              SizedBox(height: AppSpacing.lg),
+              FadeSlideIn(delay: Duration(milliseconds: 120), child: _NearbyIssuesSection()),
+              SizedBox(height: AppSpacing.lg),
+              FadeSlideIn(delay: Duration(milliseconds: 160), child: _CategorySection()),
+              SizedBox(height: AppSpacing.lg),
+              FadeSlideIn(delay: Duration(milliseconds: 200), child: _RecentReportsSection()),
+              SizedBox(height: AppSpacing.lg),
+              FadeSlideIn(delay: Duration(milliseconds: 240), child: _ReportIssueCta()),
+            ],
+          ),
         ),
       ),
     );
@@ -162,7 +166,7 @@ class _NearbyIssuesSection extends ConsumerWidget {
         SizedBox(
           height: 190,
           child: nearbyAsync.when(
-            loading: () => const LoadingView(message: 'Finding issues near you…'),
+            loading: () => const SkeletonReportRow(),
             error: (error, stackTrace) => _InlineMessage(
               icon: error is ApiException && error.isNetworkError
                   ? Icons.wifi_off_outlined
@@ -184,18 +188,21 @@ class _NearbyIssuesSection extends ConsumerWidget {
                       final report = page.items[index];
                       return SizedBox(
                         width: 280,
-                        child: ReportCard(
-                          title: report.category.label,
-                          description: report.description,
-                          category: report.category,
-                          status: report.status,
-                          city: report.city,
-                          pinCode: report.pinCode,
-                          referenceId: report.referenceId,
-                          imageUrl:
-                              report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
-                          date: report.createdAt,
-                          onTap: () => context.push('/report/${report.id}'),
+                        child: FadeSlideIn(
+                          delay: Duration(milliseconds: 40 * index),
+                          child: ReportCard(
+                            title: report.category.label,
+                            description: report.description,
+                            category: report.category,
+                            status: report.status,
+                            city: report.city,
+                            pinCode: report.pinCode,
+                            referenceId: report.referenceId,
+                            imageUrl:
+                                report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
+                            date: report.createdAt,
+                            onTap: () => context.push('/report/${report.id}'),
+                          ),
                         ),
                       );
                     },
@@ -241,10 +248,7 @@ class _RecentReportsSection extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         feedAsync.when(
-          loading: () => const SizedBox(
-            height: 160,
-            child: LoadingView(message: 'Loading recent reports…'),
-          ),
+          loading: () => const SkeletonReportList(count: 2, padding: EdgeInsets.zero),
           error: (error, stackTrace) => SizedBox(
             height: 160,
             child: ErrorView.forError(
@@ -278,17 +282,21 @@ class _RecentReportsList extends StatelessWidget {
     return Column(
       children: [
         for (var index = 0; index < reports.length; index++) ...[
-          ReportCard(
-            title: reports[index].category.label,
-            description: reports[index].description,
-            category: reports[index].category,
-            status: reports[index].status,
-            city: reports[index].city,
-            pinCode: reports[index].pinCode,
-            referenceId: reports[index].referenceId,
-            imageUrl: reports[index].imageUrls.isNotEmpty ? reports[index].imageUrls.first : null,
-            date: reports[index].createdAt,
-            onTap: () => context.push('/report/${reports[index].id}'),
+          FadeSlideIn(
+            delay: Duration(milliseconds: 40 * index),
+            child: ReportCard(
+              title: reports[index].category.label,
+              description: reports[index].description,
+              category: reports[index].category,
+              status: reports[index].status,
+              city: reports[index].city,
+              pinCode: reports[index].pinCode,
+              referenceId: reports[index].referenceId,
+              imageUrl:
+                  reports[index].imageUrls.isNotEmpty ? reports[index].imageUrls.first : null,
+              date: reports[index].createdAt,
+              onTap: () => context.push('/report/${reports[index].id}'),
+            ),
           ),
           if (index != reports.length - 1) const SizedBox(height: AppSpacing.sm),
         ],

@@ -6,9 +6,11 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/core/theme/theme_preference.dart';
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/section_header.dart';
 import 'package:nagarik/shared/widgets/settings_list_tile.dart';
 import 'package:nagarik/shared/widgets/settings_section.dart';
@@ -27,7 +29,9 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'Settings'),
-      body: ListView(
+      body: ResponsiveCenter(
+        child: FadeSlideIn(
+          child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           const SectionHeader(title: 'Account information'),
@@ -110,6 +114,8 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ],
+          ),
+        ),
       ),
     );
   }
