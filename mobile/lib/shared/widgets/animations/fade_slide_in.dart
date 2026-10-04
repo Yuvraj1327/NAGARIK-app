@@ -13,6 +13,11 @@ import 'package:flutter/material.dart';
 /// `delay: Duration(milliseconds: 40 * index)`) so items settle in one
 /// after another instead of all at once — used by the report list screens'
 /// `itemBuilder`s.
+///
+/// [beginScale] (NAGARIK Theme upgrade) optionally adds a subtle scale-in on
+/// top of the fade/slide — e.g. `beginScale: 0.94` for a hero image's
+/// entrance. Defaults to `1.0` (no scaling), so every existing call site is
+/// visually unchanged.
 class FadeSlideIn extends StatefulWidget {
   const FadeSlideIn({
     super.key,
@@ -20,12 +25,14 @@ class FadeSlideIn extends StatefulWidget {
     this.delay = Duration.zero,
     this.duration = const Duration(milliseconds: 320),
     this.offset = const Offset(0, 0.06),
+    this.beginScale = 1.0,
   });
 
   final Widget child;
   final Duration delay;
   final Duration duration;
   final Offset offset;
+  final double beginScale;
 
   @override
   State<FadeSlideIn> createState() => _FadeSlideInState();
@@ -40,6 +47,10 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
   late final Animation<Offset> _slide = Tween<Offset>(
     begin: widget.offset,
     end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  late final Animation<double> _scale = Tween<double>(
+    begin: widget.beginScale,
+    end: 1.0,
   ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
   @override
@@ -64,7 +75,12 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _fade,
-      child: SlideTransition(position: _slide, child: widget.child),
+      child: SlideTransition(
+        position: _slide,
+        child: widget.beginScale == 1.0
+            ? widget.child
+            : ScaleTransition(scale: _scale, child: widget.child),
+      ),
     );
   }
 }

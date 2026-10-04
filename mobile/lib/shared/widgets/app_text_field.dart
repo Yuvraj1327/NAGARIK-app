@@ -19,8 +19,8 @@ class AppTextField extends StatelessWidget {
     this.onChanged,
     this.enabled = true,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
+    this.focusNode,
   });
-
 
   final String label;
   final TextEditingController? controller;
@@ -41,10 +41,18 @@ class AppTextField extends StatelessWidget {
   final bool enabled;
   final AutovalidateMode autovalidateMode;
 
+  /// Optional (NAGARIK Theme upgrade) — lets a screen observe this field's
+  /// focus state (e.g. `focusNode.addListener(...)`) without this widget
+  /// needing to know why. Login/Signup pass one per field to drive their
+  /// focus-blur hero effect; every other call site omits it and is
+  /// unaffected (Flutter creates and owns an internal node as before).
+  final FocusNode? focusNode;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,

@@ -45,20 +45,39 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imagePath = category.imagePath;
+
+    // NAGARIK Theme upgrade: the uploaded category photo fills the top of
+    // the tile via `Expanded` + `BoxFit.cover` — this fits whatever height
+    // the grid cell gives it with no distortion (the source aspect ratio is
+    // always preserved, excess is cropped rather than stretched) and every
+    // tile stays the same consistent size regardless of category. `other`
+    // has no supplied photo, so it falls back to its existing icon on a
+    // tinted surface rather than leaving a blank tile.
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.xs),
+      padding: EdgeInsets.zero,
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(category.icon, size: 26, color: AppColors.primary),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            category.label,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall,
+          Expanded(
+            child: imagePath != null
+                ? Image.asset(imagePath, width: double.infinity, fit: BoxFit.cover)
+                : Container(
+                    width: double.infinity,
+                    color: AppColors.primaryLight,
+                    alignment: Alignment.center,
+                    child: Icon(category.icon, size: 26, color: AppColors.primary),
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs, horizontal: AppSpacing.xs),
+            child: Text(
+              category.label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
           ),
         ],
       ),

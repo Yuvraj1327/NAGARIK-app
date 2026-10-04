@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,7 +34,32 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   bool _isSubmitting = false;
+
+  // NAGARIK Theme upgrade: true while any field has focus, driving the
+  // hero image's blur-in/restore — same mechanism as LoginScreen's
+  // `_isFieldFocused` (see its doc comment).
+  bool _isFieldFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final node in [_nameFocus, _emailFocus, _passwordFocus, _confirmFocus]) {
+      node.addListener(_onFieldFocusChange);
+    }
+  }
+
+  void _onFieldFocusChange() {
+    final focused = _nameFocus.hasFocus ||
+        _emailFocus.hasFocus ||
+        _passwordFocus.hasFocus ||
+        _confirmFocus.hasFocus;
+    if (focused != _isFieldFocused) setState(() => _isFieldFocused = focused);
+  }
 
   Future<void> _handleSignup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -72,111 +99,202 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // NAGARIK Theme upgrade: same hero banner as Login, shorter since
+    // Signup's form has more fields to fit above the fold.
+    final heroHeight = (MediaQuery.of(context).size.height * 0.26).clamp(170.0, 260.0);
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
         leading: BackButton(onPressed: () => context.pop()),
       ),
-      body: SafeArea(
-        child: ResponsiveCenter(
-          maxWidth: 480,
-          child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FadeSlideIn(
-                  offset: const Offset(0, 0.12),
-                  child: Column(
-                    children: [
-                      const Center(child: Logo(size: 72)),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Create your account',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Join NAGARIK to report and track civic issues.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                AppTextField(
-                  label: 'Full name',
-                  controller: _nameController,
-                  prefixIcon: Icons.person_outline,
-                  textInputAction: TextInputAction.next,
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty) ? 'Name is required.' : null,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Email',
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    final email = value?.trim() ?? '';
-                    if (email.isEmpty) return 'Email is required.';
-                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                      return 'Enter a valid email address.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Password',
-                  controller: _passwordController,
-                  obscureText: true,
-                  prefixIcon: Icons.lock_outline,
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'Password must be at least 6 characters.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Confirm password',
-                  controller: _confirmController,
-                  obscureText: true,
-                  prefixIcon: Icons.lock_outline,
-                  textInputAction: TextInputAction.done,
-                  validator: (value) {
-                    if (value != _passwordController.text) return 'Passwords do not match.';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  label: 'Create account',
-                  isLoading: _isSubmitting,
-                  onPressed: _handleSignup,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
+        children: [
+          FadeSlideIn(
+            duration: const Duration(milliseconds: 420),
+            beginScale: 0.94,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+              child: SizedBox(
+                width: double.infinity,
+                height: heroHeight,
+                // Focus-blur (NAGARIK Theme upgrade) — see LoginScreen's
+                // identical block for the full explanation; the form below
+                // is a separate widget and always stays sharp.
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    const Text('Already have an account?'),
-                    TextButton(
-                      onPressed: () => context.pop(),
-                      child: const Text('Log in'),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(end: _isFieldFocused ? 6.0 : 0.0),
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOut,
+                      builder: (context, sigma, child) => ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                        child: child,
+                      ),
+                      child: Image.asset(
+                        'assets/images/auth_hero.jpg',
+                        width: double.infinity,
+                        height: heroHeight,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      opacity: _isFieldFocused ? 1 : 0,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOut,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(color: Color(0x5912213A)),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                child: ResponsiveCenter(
+                  maxWidth: 480,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.md,
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 80),
+                            child: Column(
+                              children: [
+                                const Center(child: Logo(size: 48)),
+                                const SizedBox(height: AppSpacing.sm),
+                                Text(
+                                  'Create your account',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  'Join NAGARIK to report and track civic issues.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 120),
+                            child: AppTextField(
+                              label: 'Full name',
+                              controller: _nameController,
+                              focusNode: _nameFocus,
+                              prefixIcon: Icons.person_outline,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) => (value == null || value.trim().isEmpty)
+                                  ? 'Name is required.'
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 150),
+                            child: AppTextField(
+                              label: 'Email',
+                              controller: _emailController,
+                              focusNode: _emailFocus,
+                              keyboardType: TextInputType.emailAddress,
+                              prefixIcon: Icons.email_outlined,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) {
+                                final email = value?.trim() ?? '';
+                                if (email.isEmpty) return 'Email is required.';
+                                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                                  return 'Enter a valid email address.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 180),
+                            child: AppTextField(
+                              label: 'Password',
+                              controller: _passwordController,
+                              focusNode: _passwordFocus,
+                              obscureText: true,
+                              prefixIcon: Icons.lock_outline,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) {
+                                if (value == null || value.length < 6) {
+                                  return 'Password must be at least 6 characters.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 210),
+                            child: AppTextField(
+                              label: 'Confirm password',
+                              controller: _confirmController,
+                              focusNode: _confirmFocus,
+                              obscureText: true,
+                              prefixIcon: Icons.lock_outline,
+                              textInputAction: TextInputAction.done,
+                              validator: (value) {
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 250),
+                            child: AppButton(
+                              label: 'Create account',
+                              isLoading: _isSubmitting,
+                              onPressed: _handleSignup,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 280),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('Already have an account?'),
+                                TextButton(
+                                  onPressed: () => context.pop(),
+                                  child: const Text('Log in'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -187,6 +305,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 }

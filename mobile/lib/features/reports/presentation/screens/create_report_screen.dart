@@ -17,6 +17,7 @@ import 'package:nagarik/features/reports/domain/report_draft.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
+import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
 import 'package:nagarik/shared/widgets/responsive_center.dart';
@@ -198,6 +199,10 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 }
 
+/// NAGARIK Theme upgrade: a grid of photo cards (one per [ReportCategory])
+/// replaces the old icon-only `ChoiceChip` row — the uploaded category
+/// photos need real room to read as photos, which a chip's small `avatar`
+/// slot never gave them.
 class _CategoryStep extends StatelessWidget {
   const _CategoryStep({required this.selected, required this.onSelected});
 
@@ -206,24 +211,109 @@ class _CategoryStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: ReportCategory.values.map((category) {
-        final isSelected = category == selected;
-        return ChoiceChip(
-          label: Text(category.label),
-          avatar: Icon(
-            category.icon,
-            size: 18,
-            color: isSelected ? AppColors.onPrimary : AppColors.textSecondary,
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.sm,
+      crossAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 0.82,
+      children: [
+        for (final category in ReportCategory.values)
+          _CategoryOption(
+            category: category,
+            isSelected: category == selected,
+            onTap: () => onSelected(category),
           ),
-          selected: isSelected,
-          onSelected: (_) => onSelected(category),
-          selectedColor: AppColors.primary,
-          labelStyle: TextStyle(color: isSelected ? AppColors.onPrimary : AppColors.textPrimary),
-        );
-      }).toList(),
+      ],
+    );
+  }
+}
+
+class _CategoryOption extends StatelessWidget {
+  const _CategoryOption({
+    required this.category,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final ReportCategory category;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final imagePath = category.imagePath;
+
+    return PressableScale(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isSelected ? const Color(0x332088E8) : const Color(0x0F12213A),
+                blurRadius: isSelected ? 14 : 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      imagePath != null
+                          ? Image.asset(imagePath, fit: BoxFit.cover)
+                          : Container(
+                              color: AppColors.primaryLight,
+                              alignment: Alignment.center,
+                              child: Icon(category.icon, size: 28, color: AppColors.primary),
+                            ),
+                      if (isSelected)
+                        Container(
+                          color: AppColors.primary.withOpacity(0.16),
+                          padding: const EdgeInsets.all(4),
+                          alignment: Alignment.topRight,
+                          child: const CircleAvatar(
+                            radius: 10,
+                            backgroundColor: AppColors.primary,
+                            child: Icon(Icons.check, size: 13, color: AppColors.onPrimary),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  color: isSelected ? AppColors.primaryLight : AppColors.surface,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Text(
+                    category.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

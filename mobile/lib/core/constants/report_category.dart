@@ -32,4 +32,18 @@ enum ReportCategory {
         ReportCategory.safety => Icons.shield_outlined,
         ReportCategory.other => Icons.report_gmailerrorred_outlined,
       };
+
+  /// Photo asset for this category (NAGARIK Theme upgrade), used in place
+  /// of [icon] on Home → Explore by Category and Report Issue → Category
+  /// selection. `null` for [other], which has no supplied photo and keeps
+  /// rendering via [icon] as a graceful fallback wherever this is used.
+  String? get imagePath => switch (this) {
+        ReportCategory.road => 'assets/images/category_road.jpg',
+        ReportCategory.streetlight => 'assets/images/category_streetlight.jpg',
+        ReportCategory.sanitation => 'assets/images/category_sanitation.jpg',
+        ReportCategory.water => 'assets/images/category_water.jpg',
+        ReportCategory.electricity => 'assets/images/category_electricity.jpg',
+        ReportCategory.safety => 'assets/images/category_safety.jpg',
+        ReportCategory.other => null,
+      };
 }

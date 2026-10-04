@@ -444,3 +444,89 @@ the full write-up; in short:
 
 See `docs/ARCHITECTURE.md` section 20 for the complete rationale and the
 full list of touched screens.
+
+## NAGARIK Theme Upgrade
+
+Client-supplied photography and an exact new brand palette, Android + iOS
+only, with no auth/business-logic change. See `docs/ARCHITECTURE.md`
+section 21 for the full write-up; in short:
+
+- **New brand palette** — `AppColors`' `primary`/`background`/`border`/
+  `textPrimary` now use the exact given hex values, plus two new tokens
+  (`primaryBright`, `accentTeal`) for colors the old palette had no field
+  for. Dark theme and status colors are unchanged.
+- **Category photos** — the 6 supplied photos (resized to optimized 480×480
+  JPEGs in `assets/images/category_*.jpg`) now appear on Home → Explore by
+  Category and Report Issue → Category selection, via a new
+  `ReportCategory.imagePath` getter; `other` keeps its icon as a fallback.
+- **Login/Signup hero** — both screens now open with the supplied hero
+  photo (`assets/images/auth_hero.jpg`) as a fixed-height banner that never
+  covers the form, with a fast fade+slide+scale entrance for the image and
+  a staggered, field-by-field entrance for the form beneath it.
+
+See `docs/ARCHITECTURE.md` section 21 for the complete rationale and the
+full list of touched files.
+
+## Auth Welcome screen & "Continue with Google"
+
+The app now opens on a new full-screen Auth Welcome screen
+(`AuthWelcomeScreen`) when signed out, with two actions: "Log In" (goes to
+the existing Login screen, which still links on to Register) and
+"Continue with Google". See `docs/ARCHITECTURE.md` section 22 for the full
+write-up; in short:
+
+- **New auth gate entry point** — the router's `initialLocation` is now
+  `/welcome` instead of `/login`, and signing out or an expired session
+  now lands back on `/welcome`. Email/Password auth is unchanged.
+- **Google sign-in** uses the platform's native account picker (via the
+  `google_sign_in` package), not a web-redirect/browser flow, then hands
+  the result to Supabase Auth's `signInWithIdToken`.
+- **Focus-blur** — Login/Signup's hero photo now smoothly blurs and dims
+  while any field on that screen is focused, and restores when it isn't.
+
+### Google sign-in setup (required for "Continue with Google" to work)
+
+Everything else in the app (Email/Password auth, every other screen) works
+with **zero** setup here — this section only matters once you actually
+want "Continue with Google" to succeed instead of showing its "not
+configured yet" error.
+
+1. **Enable the Google provider in Supabase**: Supabase Dashboard →
+   Authentication → Providers → Google → toggle it on.
+2. **Create OAuth client IDs in Google Cloud Console** (APIs & Services →
+   Credentials → Create Credentials → OAuth client ID), one of each:
+   - A **Web application** client — its Client ID is what both this app's
+     `GOOGLE_WEB_CLIENT_ID` and Supabase's Google provider "Client ID"
+     field should be set to (they must match: it's what Supabase checks
+     the Google ID token's `aud` claim against). Supabase's Google
+     provider page shows the exact Authorized redirect URI to add to this
+     Web client.
+   - An **iOS** client — bundle ID matching whatever you set up when you
+     eventually run `flutter create` for this project (see "App icons"
+     above for the equivalent android/ios-folder caveat). Its Client ID
+     goes in `GOOGLE_IOS_CLIENT_ID`.
+   - An **Android** client — SHA-1 fingerprint of your signing key +
+     applicationId. This project has no native `android/` folder yet, so
+     there's nothing to put the Android client's own ID into directly;
+     creating it is still required so Google will issue tokens to your
+     app's package name/fingerprint, but the ID token request itself is
+     authenticated via the **Web** client's ID (`GOOGLE_WEB_CLIENT_ID`,
+     passed as `GoogleSignIn(serverClientId: ...)`), per `google_sign_in`'s
+     own setup docs.
+3. **Set both values in `mobile/.env`**:
+   ```
+   GOOGLE_WEB_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+   GOOGLE_IOS_CLIENT_ID=your-ios-client-id.apps.googleusercontent.com
+   ```
+4. Once this project has been through `flutter create` (see this file's
+   Prerequisites section), also add the standard native wiring
+   `google_sign_in` documents for a project with real platform folders:
+   iOS's `Info.plist` gets a `CFBundleURLTypes` entry with the iOS
+   client's *reversed* client ID as the URL scheme; Android needs no extra
+   manifest entry for this flow specifically, but double-check your
+   release signing SHA-1 is registered on the Android OAuth client above
+   before shipping a release build.
+
+None of this blocks running the app today — leave both `.env` values blank
+and everything works except the Google button, which shows a clear error
+instead of crashing anything.

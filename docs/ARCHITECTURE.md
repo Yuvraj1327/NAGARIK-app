@@ -1362,3 +1362,190 @@ contains the new widgets (`FadeSlideIn`/`SkeletonBox`'s constructors are
 non-const). No existing test file needed changes — this upgrade doesn't
 touch any constructor signature, field, or behavior any existing test
 asserts on, only internal visuals of already-tested widgets.
+
+## 21. NAGARIK Theme upgrade: category photos, Login/Signup hero, brand palette
+
+A visual upgrade using client-supplied photography and an exact new brand
+palette. Android + iOS only. No auth/business logic touched — every change
+is confined to `core/theme/`, the two auth screens' `build()` methods, the
+category-image plumbing, and the new image assets themselves.
+
+**Brand palette replaced in `AppColors` with the exact given hex values:**
+`primary` (#2088E8, was #2563EB), `background` (#F7FBFE, was #F8FAFC),
+`border` (#D9E8F2, was #E2E8F0), `textPrimary` (#12213A "Navy Text", was
+#0F172A). `textSecondary` (#64748B "Muted Text") needed no change — it
+already matched exactly. Two palette entries had no existing field to map
+onto, so they were added as new tokens: `primaryBright` (#2F9AF4 "Bright
+Blue") and `accentTeal` (#19B8C4 "Cyan/Teal"), both available for future
+gradients/accents but not yet forced into any existing widget — the brief
+specified the palette, not where every accent should appear. `primaryLight`
+(#DDF4FF "Light Blue") replaces what was previously a one-off hardcoded
+literal (`NavigationBarThemeData.indicatorColor`) and is now also the
+tinted/selected-state color for category tiles. `primaryDark`, not part of
+the given palette, was kept as a derived darker shade of the new primary
+(#1A6FC0) rather than left stale. Dark-theme tokens and feedback/status
+colors are untouched — only the light/brand palette was specified.
+
+Four hardcoded hex literals that referenced the old palette by raw value
+instead of `AppColors.*` (found via grepping `lib/` for `Color(0x...)`)
+were updated by hand in `app_theme.dart` (button shadow, light-theme nav
+indicator — now `AppColors.primaryLight`, nav shadow) and `app_card.dart`
+(light-mode card shadow), so no old-blue/old-navy traces remain anywhere
+in the shipped UI. Dark-theme literals were left as-is (not derived from
+the changed light literals, and no dark palette was supplied).
+
+**Category photos:** the 6 supplied photos (pothole, broken streetlight,
+overflowing bins, leaking pipe, sparking junction box, CCTV camera) were
+resized/re-encoded (PIL, `LANCZOS` resample → JPEG, quality 88,
+`optimize=True`) from ~1254×1254/~2MB originals down to 480×480 tiles
+(~55–71KB each) — plenty of resolution for the small card/tile sizes they
+render at, cutting shipped-asset weight by over 90% with no visible
+quality loss. `ReportCategory` gained a new `imagePath` getter (parallel to
+the existing `label`/`icon` getters) returning the matching
+`assets/images/category_*.jpg` path for the six covered categories and
+`null` for `other` (no supplied photo).
+
+- **Home → Explore by Category** (`CategoryGrid`'s `_CategoryTile`): each
+  tile now shows its category photo filling the top of the card
+  (`Expanded` + `BoxFit.cover`, so every tile is the same consistent size
+  and the photo's aspect ratio is always preserved — cropped, never
+  stretched/distorted) with the label beneath; `other` falls back to its
+  existing icon on a tinted (`primaryLight`) surface instead of a blank
+  photo slot.
+- **Report Issue → Category selection** (`CreateReportScreen`'s
+  `_CategoryStep`): the old icon-`ChoiceChip` row (too small for a photo to
+  read) was replaced with a 3-column grid of `_CategoryOption` photo cards
+  — same `Expanded`-photo-plus-label structure, with a visible selected
+  state (thicker `primary`-colored border, a small `primary` shadow, a
+  checkmark badge over the photo, and a tinted label strip). Wrapped in the
+  existing `PressableScale` primitive for the same tap-feedback every other
+  interactive card in the app already has.
+
+**Login/Signup hero + animated entrance:** the supplied portrait hero photo
+was resized to a 720px-wide JPEG (~151KB, aspect preserved from the
+~941×1672 original) as `assets/images/auth_hero.jpg`, shared by both
+screens. Both `LoginScreen` and `SignupScreen` now open with this image as
+a fixed-height, screen-fraction-based banner (`MediaQuery` height × 0.34
+for Login / × 0.26 for Signup, each clamped to a min/max range) with
+rounded bottom corners — never full-screen, so it can never push the form
+below the fold or fight the keyboard once a field is focused. Signup's
+`AppBar` is transparent with `extendBodyBehindAppBar: true` so its back
+button floats over the photo instead of pushing it down with an opaque
+bar.
+
+The hero image enters with a fade + slide + scale via `FadeSlideIn`, which
+gained a new optional `beginScale` field (default `1.0`, meaning every one
+of its ~15+ existing call sites is visually unchanged) — when not `1.0` the
+widget additionally wraps its child in a `ScaleTransition`. Beneath the
+hero, every individual form element (header, each field, the submit
+button, the footer link row) is wrapped in its own `FadeSlideIn` with an
+increasing `delay`, so the form visibly cascades in field-by-field rather
+than appearing as one block — a fast (~400ms total), subtle, one-shot
+entrance, not a flashy or looping animation.
+
+**Assets:** all 7 new JPEGs were registered under `mobile/pubspec.yaml`'s
+`flutter: assets:` list alongside the existing logo entry.
+
+**Verification:** same method as every prior step — no Flutter SDK in this
+sandbox, so verified via the project's static checker (`dart_check.py`)
+run on every edited file and again across the full `lib/`/`test/` tree,
+plus manual re-review of each nesting change and a `grep` sweep confirming
+no stale old-palette hex literals remained. No existing test needed
+changes — nothing here touches a tested constructor, field, or behavior,
+only visuals and (for `FadeSlideIn`) a new optional, default-neutral field.
+
+## 22. Auth Welcome screen, "Continue with Google", and the updated auth gate
+
+A new entry point for signed-out users, plus Google OAuth alongside the
+existing Email/Password flow. Android + iOS only. Email/Password auth
+(`AuthRepository.signUp`/`signIn`) is completely untouched — this upgrade
+only adds a new screen and a new, additive `AuthRepository` method.
+
+**New screen:** `AuthWelcomeScreen`
+(`features/auth/presentation/screens/auth_welcome_screen.dart`) is a
+full-bleed design built around the existing `assets/images/auth_hero.jpg`
+(added in section 21) — a navy (`AppColors.textPrimary`) gradient scrim
+for legibility rather than a generic black or any purple/dark tint, bold
+white headline/tagline copy, and a staggered `FadeSlideIn` entrance (the
+photo settles in from a slight zoom; the brand row, tagline, headline,
+subtext, and both buttons cascade in beneath it). It offers exactly two
+actions, per the brief: a "Log In" button that pushes the existing
+`LoginScreen` (unchanged — Signup is still reached from there via
+"Register", preserving the Welcome → Login → Signup `pop()` chain those
+screens already relied on), and "Continue with Google". A reference
+screenshot supplied with this request was used only to gauge the
+*category* of polish expected (full-bleed photo, legibility scrim, bold
+type, a premium staggered entrance) — its own purple/dark color scheme,
+layout, and branding were deliberately not reused; the design here is
+built from NAGARIK's own palette and hero photo.
+
+**"Continue with Google":** `AuthRepository.signInWithGoogle()` (new
+method, `features/auth/data/auth_repository.dart`) uses the `google_sign_in`
+package to drive the platform's own native account picker — not
+Supabase's web-redirect OAuth flow, which would open an in-app browser
+instead of the real native picker the brief specifically asked for — then
+exchanges the resulting Google ID token for a Supabase session via
+`signInWithIdToken(provider: OAuthProvider.google, ...)`, the flow
+Supabase's own docs recommend for native apps. On success there's
+deliberately no manual navigation in `AuthWelcomeScreen`, exactly like
+`LoginScreen`'s existing `_handleLogin`: the router's `refreshListenable`
+already reacts to the new session and leaves `/welcome` on its own.
+`signOut()` was also extended to best-effort sign out of the cached Google
+account too (swallowed on failure — never allowed to block an actual
+logout), so a future "Continue with Google" shows the account picker again
+rather than silently reusing the last account.
+
+Since this project has no native `android/`/`ios/` folders yet (per
+`mobile/README.md`), `GoogleSignIn` is configured entirely from two new,
+**optional** `.env` values — `Env.googleWebClientId`/`Env.googleIosClientId`
+in `core/config/env.dart`, read with a new `_optional` helper (returns
+`null`, never throws, unlike `_require`) so an unconfigured project still
+has fully working Email/Password auth; only "Continue with Google" shows a
+clear, friendly error (`AuthRepository.signInWithGoogle` throws a plain
+`StateError`, which `AuthWelcomeScreen` distinguishes from an actual
+`AuthException` and from a routine "picker dismissed" cancellation). See
+`mobile/README.md`'s new "Google sign-in" section for the one-time Google
+Cloud Console + Supabase dashboard setup this needs before it works for
+real — that native configuration can't be done from this sandbox.
+
+**Updated auth gate** (`core/routing/app_router.dart`): a new `/welcome`
+route (`AuthWelcomeScreen`) is now `initialLocation` instead of `/home`,
+and the `redirect`'s `isGoingToAuth` check was extended to treat
+`/welcome`, `/login`, and `/signup` as the full set of auth screens. The
+gate's actual rule is unchanged in shape (signed-out → bounced to the auth
+entry point; signed-in → bounced away from any auth screen to `/home`) —
+only the entry point moved from `/login` to `/welcome`, so: a cold start
+while signed out now shows Welcome (not Login); a cold start while already
+signed in still skips straight to `/home` (the redirect fires before
+Welcome ever paints); and signing out or an expired session (from
+anywhere — e.g. the drawer's "Log out", which already went through this
+same gate with no navigation code of its own) now lands back on
+`/welcome` instead of `/login`.
+
+**Focus-blur on Login/Signup:** both screens' existing hero banner (from
+section 21) now smoothly blurs (`ImageFiltered` + `ImageFilter.blur`,
+animated via `TweenAnimationBuilder` over 260ms) and darkens with a navy
+scrim (`AnimatedOpacity`) the moment any field in that screen is focused,
+and restores instantly when focus leaves every field — the form itself is
+a separate widget below the hero banner and was never touched by this
+effect, so it stays sharp throughout. Driven by a plain `FocusNode` per
+field (`AppTextField` gained a new, optional `focusNode` parameter —
+`null` everywhere else it's already used, so every other call site is
+unaffected) with a single listener recomputing "is anything focused" on
+change. `LoginScreen` also gained the same transparent-`AppBar` +
+`extendBodyBehindAppBar` back-button treatment `SignupScreen` already had,
+since `/login` is no longer the app's first screen and now needs a way
+back to `/welcome`.
+
+**Verification:** same method as every prior step — no Flutter SDK in
+this sandbox, so verified via `dart_check.py` on every edited file and
+again across the full `lib`/`test` tree, plus manual review of every
+nesting change (the hero-banner `Stack` restructuring on both auth
+screens, the Welcome screen's `Stack`/`Column`/`Spacer` layout). No
+existing test touches auth navigation against the real `appRouterProvider`
+(`widget_test.dart`'s router test builds its own standalone `GoRouter`), so
+nothing needed updating there. Google Sign-In itself could not be
+exercised end-to-end here — no emulator/device, and no real Google Cloud
+OAuth client IDs to test against — so this is unverified beyond static
+analysis and manual code review; test it for real with your own client IDs
+before shipping.

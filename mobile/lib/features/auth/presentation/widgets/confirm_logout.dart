@@ -12,8 +12,8 @@ import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart
 /// persists); this dialog only gates *calling* that behind a confirmation,
 /// same as any destructive action. Once it fires, the router's auth gate
 /// (`core/routing/app_router.dart`) reacts to the resulting auth-state
-/// change on its own and returns the app to `/login` — no navigation call
-/// needed here.
+/// change on its own and returns the app to `/welcome` (NAGARIK Theme
+/// upgrade — was `/login`) — no navigation call needed here.
 Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
   final confirmed = await showDialog<bool>(
     context: context,

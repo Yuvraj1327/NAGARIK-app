@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +30,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _isSubmitting = false;
+
+  // NAGARIK Theme upgrade: true while either field has focus, driving the
+  // hero image's blur-in/restore (`_onFieldFocusChange`, a plain
+  // FocusNode listener on each field — the simplest reliable way to
+  // observe focus without AppTextField needing to know why).
+  bool _isFieldFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailFocus.addListener(_onFieldFocusChange);
+    _passwordFocus.addListener(_onFieldFocusChange);
+  }
+
+  void _onFieldFocusChange() {
+    final focused = _emailFocus.hasFocus || _passwordFocus.hasFocus;
+    if (focused != _isFieldFocused) setState(() => _isFieldFocused = focused);
+  }
 
   Future<void> _handleLogin() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -54,84 +76,175 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // NAGARIK Theme upgrade: a fixed-height hero banner up top (the
+    // uploaded `auth_hero.jpg`, shared with Signup and the Auth Welcome
+    // screen) instead of the plain centered Logo this screen used to open
+    // on. Capped between 220 and 320 logical pixels — a fraction of the
+    // screen on a normal phone, never so tall it pushes the form below the
+    // fold or, on a short device, so tall it fights the keyboard once a
+    // field is focused.
+    final heroHeight = (MediaQuery.of(context).size.height * 0.34).clamp(220.0, 320.0);
+
     return Scaffold(
-      body: SafeArea(
-        child: ResponsiveCenter(
-          maxWidth: 480,
-          child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FadeSlideIn(
-                  offset: const Offset(0, 0.12),
-                  child: Column(
-                    children: [
-                      const Center(child: Logo(size: 96)),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'A Civic Good Initiative',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                AppTextField(
-                  label: 'Email',
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    final email = value?.trim() ?? '';
-                    if (email.isEmpty) return 'Email is required.';
-                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                      return 'Enter a valid email address.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Password',
-                  controller: _passwordController,
-                  obscureText: true,
-                  prefixIcon: Icons.lock_outline,
-                  textInputAction: TextInputAction.done,
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'Password must be at least 6 characters.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  label: 'Log in',
-                  isLoading: _isSubmitting,
-                  onPressed: _handleLogin,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+        leading: BackButton(onPressed: () => context.pop()),
+      ),
+      body: Column(
+        children: [
+          // Scale+fade+slide entrance (NAGARIK Theme upgrade) — fast,
+          // subtle, matches `FadeSlideIn`'s existing use everywhere else
+          // in the app rather than a one-off animation just for this image.
+          FadeSlideIn(
+            duration: const Duration(milliseconds: 420),
+            beginScale: 0.94,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+              child: SizedBox(
+                width: double.infinity,
+                height: heroHeight,
+                // Focus-blur (NAGARIK Theme upgrade): typing in Email or
+                // Password smoothly blurs this photo and darkens it with a
+                // scrim, then restores it the instant focus leaves both
+                // fields (keyboard dismissed or a field blurred) — the
+                // form itself is a separate widget below and is never
+                // touched by this effect, so it always stays sharp.
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    const Text("Don't have an account?"),
-                    TextButton(
-                      onPressed: () => context.push('/signup'),
-                      child: const Text('Sign up'),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(end: _isFieldFocused ? 6.0 : 0.0),
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOut,
+                      builder: (context, sigma, child) => ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                        child: child,
+                      ),
+                      child: Image.asset(
+                        'assets/images/auth_hero.jpg',
+                        width: double.infinity,
+                        height: heroHeight,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      opacity: _isFieldFocused ? 1 : 0,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOut,
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(color: Color(0x5912213A)),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: SingleChildScrollView(
+                child: ResponsiveCenter(
+                  maxWidth: 480,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.md,
+                      AppSpacing.lg,
+                      AppSpacing.lg,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 80),
+                            child: Column(
+                              children: [
+                                const Center(child: Logo(size: 56)),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  'A Civic Good Initiative',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 140),
+                            child: AppTextField(
+                              label: 'Email',
+                              controller: _emailController,
+                              focusNode: _emailFocus,
+                              keyboardType: TextInputType.emailAddress,
+                              prefixIcon: Icons.email_outlined,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) {
+                                final email = value?.trim() ?? '';
+                                if (email.isEmpty) return 'Email is required.';
+                                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                                  return 'Enter a valid email address.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 180),
+                            child: AppTextField(
+                              label: 'Password',
+                              controller: _passwordController,
+                              focusNode: _passwordFocus,
+                              obscureText: true,
+                              prefixIcon: Icons.lock_outline,
+                              textInputAction: TextInputAction.done,
+                              validator: (value) {
+                                if (value == null || value.length < 6) {
+                                  return 'Password must be at least 6 characters.';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 220),
+                            child: AppButton(
+                              label: 'Log in',
+                              isLoading: _isSubmitting,
+                              onPressed: _handleLogin,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          FadeSlideIn(
+                            delay: const Duration(milliseconds: 260),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text("Don't have an account?"),
+                                TextButton(
+                                  onPressed: () => context.push('/signup'),
+                                  child: const Text('Register'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -140,6 +253,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 }

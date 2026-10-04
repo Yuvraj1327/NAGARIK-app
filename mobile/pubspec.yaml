@@ -73,6 +73,15 @@ dependencies:
   #    line for its simple, stable `Share.share(text)` static API. --
   share_plus: ^7.2.2
 
+  # -- NAGARIK Theme upgrade: "Continue with Google" on the new Auth
+  #    Welcome screen. Drives the platform's own native account picker,
+  #    then hands the resulting Google ID token to Supabase Auth
+  #    (`signInWithIdToken` — see AuthRepository.signInWithGoogle) rather
+  #    than Supabase's web-redirect OAuth flow, which would show an in-app
+  #    browser instead of the real native picker the brief calls for. The
+  #    official Google-maintained Flutter package for exactly this. --
+  google_sign_in: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -95,6 +104,17 @@ flutter:
     # lib/shared/widgets/logo.dart, the single reusable widget every screen
     # uses to display it.
     - assets/images/nagarik_logo.png
+    # NAGARIK Theme upgrade: category photos (Home → Explore by Category
+    # and Report Issue → Category selection — see ReportCategory.imagePath
+    # in core/constants/report_category.dart) and the Login/Signup hero
+    # banner image.
+    - assets/images/category_road.jpg
+    - assets/images/category_streetlight.jpg
+    - assets/images/category_sanitation.jpg
+    - assets/images/category_water.jpg
+    - assets/images/category_electricity.jpg
+    - assets/images/category_safety.jpg
+    - assets/images/auth_hero.jpg
 
 # Official Logo upgrade: `dart run flutter_launcher_icons` reads this
 # top-level section (it's flutter_launcher_icons' own config block, not

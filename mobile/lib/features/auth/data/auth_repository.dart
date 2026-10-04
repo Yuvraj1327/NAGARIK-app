@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:nagarik/core/config/env.dart';
 
 /// Thin wrapper around Supabase Auth. This is the ONLY place in the app
 /// that calls `Supabase.instance.client.auth` directly — everything else
@@ -15,6 +20,19 @@ class AuthRepository {
   final SupabaseClient _client;
 
   GoTrueClient get _auth => _client.auth;
+
+  // NAGARIK Theme upgrade: one `GoogleSignIn` instance for the app's
+  // lifetime, configured straight from `.env` since this project has no
+  // native android/ios folders yet for the package to read platform config
+  // files from (see `Env.googleWebClientId`/`Env.googleIosClientId`'s doc
+  // comments). Both are `null`-safe to pass when unset — the package then
+  // falls back to its own platform defaults, which will simply fail with a
+  // clear error if Google Sign-In truly hasn't been configured, rather
+  // than crashing anything else in the app.
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: Env.googleWebClientId,
+    clientId: Env.googleIosClientId,
+  );
 
   Session? get currentSession => _auth.currentSession;
 
@@ -46,13 +64,61 @@ class AuthRepository {
     return _auth.signInWithPassword(email: email, password: password);
   }
 
+  /// "Continue with Google" (NAGARIK Theme upgrade): opens the platform's
+  /// own native account picker (via `google_sign_in`) rather than an
+  /// in-app browser/webview, then exchanges the account's Google ID token
+  /// for a real Supabase session via `signInWithIdToken` — this is the
+  /// flow Supabase's own docs recommend for native mobile apps. Once this
+  /// resolves, the router's `refreshListenable` picks up the new session
+  /// and leaves `/welcome` automatically, the same way `signIn`/`signUp`
+  /// already do — no manual navigation needed here.
+  ///
+  /// Throws a plain [StateError] (not an [AuthException]) for the two
+  /// routine, expected non-success paths: the person dismissed the account
+  /// picker without choosing an account, or Google Sign-In hasn't been
+  /// configured yet for this project (see `Env.googleWebClientId`'s doc
+  /// comment and `mobile/README.md`'s "Google sign-in" section) — the
+  /// welcome screen tells these apart by message to decide whether to show
+  /// an error at all.
+  Future<AuthResponse> signInWithGoogle() async {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) {
+      throw StateError('cancelled');
+    }
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    if (idToken == null) {
+      throw StateError(
+        'Google sign-in is not fully configured yet. Set '
+        'GOOGLE_WEB_CLIENT_ID (and GOOGLE_IOS_CLIENT_ID on iOS) in .env and '
+        'enable the Google provider in the Supabase dashboard.',
+      );
+    }
+
+    return _auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: googleAuth.accessToken,
+    );
+  }
+
   /// Clears the local session and revokes it server-side. `signOut()` on
   /// Supabase's own client already clears everything this app persists
   /// (the SDK's own local storage) — there's no separate app-level cache
   /// of the session to clear on top of that, so this is a complete logout
   /// on its own; the router's auth gate then bounces the app back to
-  /// `/login` automatically (see `core/routing/app_router.dart`).
-  Future<void> signOut() => _auth.signOut();
+  /// `/welcome` automatically (see `core/routing/app_router.dart`).
+  ///
+  /// Also best-effort signs out of the cached Google account (NAGARIK
+  /// Theme upgrade), so a future "Continue with Google" shows the account
+  /// picker again instead of silently reusing whichever account was used
+  /// last. Swallowed on failure — this is a UX nicety, not something that
+  /// should ever block an actual logout.
+  Future<void> signOut() async {
+    await _auth.signOut();
+    unawaited(_googleSignIn.signOut().catchError((_) {}));
+  }
 
   /// Updates the signed-in user's display name (Profile -> Edit Profile).
   ///
