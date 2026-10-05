@@ -75,13 +75,33 @@ async def submit_report(
     description: str = Form(..., min_length=10, max_length=2000),
     city: str = Form(..., min_length=1, max_length=100),
     pin_code: str = Form(..., pattern=r"^[0-9]{6}$"),
-    latitude: float | None = Form(None),
-    longitude: float | None = Form(None),
+    latitude: float | None = Form(None, ge=-90, le=90),
+    longitude: float | None = Form(None, ge=-180, le=180),
     images: list[UploadFile] | None = File(None),
     current_user: CurrentUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
     supabase=Depends(get_supabase_service_client),
 ) -> ReportResponse:
+    # The length checks above run on the raw value, so padding with spaces
+    # would satisfy them; re-check what will actually be stored.
+    description = description.strip()
+    city = city.strip()
+    if len(description) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="description must be at least 10 characters (excluding surrounding spaces).",
+        )
+    if not city:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="city must not be blank.",
+        )
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="latitude and longitude must be provided together.",
+        )
+
     return await create_report(
         supabase=supabase,
         settings=settings,

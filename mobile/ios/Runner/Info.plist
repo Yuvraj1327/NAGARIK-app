@@ -41,6 +41,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>NAGARIK uses the camera so you can attach photos of the civic issue you are reporting.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NAGARIK needs access to your photos so you can attach pictures of the civic issue you are reporting.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NAGARIK uses your location to record where the civic issue you are reporting is.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

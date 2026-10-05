@@ -119,9 +119,11 @@ async def create_report(
             detail=f"You can attach at most {MAX_IMAGES} images.",
         )
 
-    bucket = supabase.storage.from_(settings.SUPABASE_STORAGE_BUCKET)
-    uploaded_paths: list[str] = []
-
+    # Validate every image BEFORE uploading any of them: previously a bad
+    # second/third image was only discovered after the earlier ones had
+    # already been uploaded, and that 400 path never cleaned them up —
+    # leaving orphaned Storage objects with no report pointing at them.
+    validated: list[tuple[str, bytes]] = []
     for image in images:
         if image.content_type not in ALLOWED_CONTENT_TYPES:
             raise HTTPException(
@@ -130,17 +132,27 @@ async def create_report(
             )
 
         contents = await image.read()
+        if not contents:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One of the attached images is empty.",
+            )
         if len(contents) > MAX_IMAGE_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Each image must be smaller than 8 MB.",
             )
+        validated.append((image.content_type, contents))
 
-        extension = _EXTENSION_BY_CONTENT_TYPE.get(image.content_type, "bin")
+    bucket = supabase.storage.from_(settings.SUPABASE_STORAGE_BUCKET)
+    uploaded_paths: list[str] = []
+
+    for content_type, contents in validated:
+        extension = _EXTENSION_BY_CONTENT_TYPE.get(content_type, "bin")
         object_path = f"{user_id}/{uuid.uuid4()}.{extension}"
 
         try:
-            bucket.upload(object_path, contents, {"content-type": image.content_type})
+            bucket.upload(object_path, contents, {"content-type": content_type})
         except Exception as exc:
             _cleanup(bucket, uploaded_paths)
             raise HTTPException(
@@ -168,6 +180,15 @@ async def create_report(
         _cleanup(bucket, uploaded_paths)
         _raise_for_supabase_error(
             exc, fallback_detail="Failed to save the report. Please try again."
+        )
+
+    if not result.data:
+        # PostgREST returned no row for the insert: treat it as a failed
+        # save (and clean up) instead of crashing on `data[0]` with a 500.
+        _cleanup(bucket, uploaded_paths)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to save the report. Please try again.",
         )
 
     saved_row = result.data[0]

@@ -64,8 +64,10 @@ class ApiClient {
     return _send(() => _dio.get<T>(path, queryParameters: queryParameters));
   }
 
-  Future<Response<T>> post<T>(String path, {Object? data}) {
-    return _send(() => _dio.post<T>(path, data: data));
+  /// [options] lets a caller override per-request settings such as timeouts
+  /// (e.g. a multi-photo upload needs far longer than the 15s default).
+  Future<Response<T>> post<T>(String path, {Object? data, Options? options}) {
+    return _send(() => _dio.post<T>(path, data: data, options: options));
   }
 
   Future<Response<T>> delete<T>(String path) {

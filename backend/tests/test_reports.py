@@ -445,6 +445,118 @@ def test_submit_report_rejects_unsupported_image_type(fake_supabase):
     assert fake_supabase.storage_bucket.uploaded == []
 
 
+_VALID_FORM = {
+    "category": "road",
+    "description": "Large pothole near the bus stop.",
+    "city": "Pune",
+    "pin_code": "411001",
+}
+
+
+def test_submit_report_bad_later_image_uploads_nothing(fake_supabase):
+    # Regression: a valid first image used to be uploaded before the second
+    # (invalid) one was rejected, and that 400 never cleaned the first up.
+    files = [
+        ("images", ("ok.jpg", io.BytesIO(b"fake-bytes"), "image/jpeg")),
+        ("images", ("doc.pdf", io.BytesIO(b"%PDF-1.4"), "application/pdf")),
+    ]
+
+    response = client.post(
+        "/api/v1/reports", headers=_auth_headers(), data=_VALID_FORM, files=files
+    )
+
+    assert response.status_code == 400
+    assert fake_supabase.storage_bucket.uploaded == []
+    assert fake_supabase._table.rows == []
+
+
+def test_submit_report_rejects_empty_image(fake_supabase):
+    files = [("images", ("empty.jpg", io.BytesIO(b""), "image/jpeg"))]
+
+    response = client.post(
+        "/api/v1/reports", headers=_auth_headers(), data=_VALID_FORM, files=files
+    )
+
+    assert response.status_code == 400
+    assert fake_supabase.storage_bucket.uploaded == []
+
+
+def test_submit_report_rejects_too_many_images(fake_supabase):
+    files = [
+        ("images", (f"p{i}.jpg", io.BytesIO(b"fake-bytes"), "image/jpeg")) for i in range(6)
+    ]
+
+    response = client.post(
+        "/api/v1/reports", headers=_auth_headers(), data=_VALID_FORM, files=files
+    )
+
+    assert response.status_code == 400
+    assert fake_supabase.storage_bucket.uploaded == []
+
+
+def test_submit_report_rejects_oversized_image(fake_supabase):
+    big = io.BytesIO(b"x" * (8 * 1024 * 1024 + 1))
+    files = [("images", ("big.jpg", big, "image/jpeg"))]
+
+    response = client.post(
+        "/api/v1/reports", headers=_auth_headers(), data=_VALID_FORM, files=files
+    )
+
+    assert response.status_code == 400
+    assert fake_supabase.storage_bucket.uploaded == []
+
+
+def test_submit_report_rejects_whitespace_padded_description(fake_supabase):
+    response = client.post(
+        "/api/v1/reports",
+        headers=_auth_headers(),
+        data={**_VALID_FORM, "description": "   short   "},
+    )
+    assert response.status_code == 422
+    assert fake_supabase._table.rows == []
+
+
+def test_submit_report_rejects_blank_city(fake_supabase):
+    response = client.post(
+        "/api/v1/reports", headers=_auth_headers(), data={**_VALID_FORM, "city": "   "}
+    )
+    assert response.status_code == 422
+
+
+def test_submit_report_trims_description_and_city(fake_supabase):
+    response = client.post(
+        "/api/v1/reports",
+        headers=_auth_headers(),
+        data={**_VALID_FORM, "description": "  Large pothole near the bus stop.  ", "city": " Pune "},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["description"] == "Large pothole near the bus stop."
+    assert body["city"] == "Pune"
+
+
+def test_submit_report_requires_latitude_and_longitude_together(fake_supabase):
+    response = client.post(
+        "/api/v1/reports",
+        headers=_auth_headers(),
+        data={**_VALID_FORM, "latitude": "18.5204"},
+    )
+    assert response.status_code == 400
+    assert fake_supabase._table.rows == []
+
+
+@pytest.mark.parametrize(
+    ("latitude", "longitude"), [("91", "73.8"), ("-91", "73.8"), ("18.5", "181"), ("18.5", "-181")]
+)
+def test_submit_report_rejects_out_of_range_coordinates(fake_supabase, latitude, longitude):
+    response = client.post(
+        "/api/v1/reports",
+        headers=_auth_headers(),
+        data={**_VALID_FORM, "latitude": latitude, "longitude": longitude},
+    )
+    assert response.status_code == 422
+
+
 def test_submit_report_requires_authentication(fake_supabase):
     response = client.post(
         "/api/v1/reports",

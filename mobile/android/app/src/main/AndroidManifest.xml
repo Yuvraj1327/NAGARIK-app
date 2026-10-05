@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Without INTERNET a release build cannot reach Supabase Auth or the
+         FastAPI backend at all (it was previously declared only in the
+         debug/profile manifests). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- "Use current location" on the Report an Issue screen (geolocator). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="nagarik"
         android:name="${applicationName}"

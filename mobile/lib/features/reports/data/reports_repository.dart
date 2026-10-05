@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:image_picker/image_picker.dart';
 
 import 'package:nagarik/core/constants/api_endpoints.dart';
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/constants/report_status.dart';
 import 'package:nagarik/core/network/api_client.dart';
+import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/domain/report_draft.dart';
 import 'package:nagarik/features/reports/domain/report_marker.dart';
@@ -20,20 +23,39 @@ class ReportsRepository {
   /// well before hitting a 400 from the server.
   static const int maxImages = 5;
 
+  /// Mirrors the backend's `MAX_IMAGE_BYTES` (8 MB per image).
+  static const int maxImageBytes = 8 * 1024 * 1024;
+
+  /// The global 15s timeouts in `ApiClient` are far too short for up to five
+  /// photos: the backend uploads them to Storage one by one before it
+  /// answers. A timeout here would also invite a retry that creates a
+  /// duplicate report, so submissions get a much longer window.
+  static const Duration _submitTimeout = Duration(minutes: 2);
+
   Future<Report> submitReport(ReportDraft draft) async {
-    final imageParts = await Future.wait(
-      draft.images.map(
-        (image) => MultipartFile.fromFile(image.path, filename: image.name),
-      ),
-    );
+    final category = draft.category;
+    if (category == null) {
+      throw const ApiException(message: 'Please select a category.');
+    }
+    if (draft.images.length > maxImages) {
+      throw const ApiException(message: 'You can attach up to $maxImages photos.');
+    }
+
+    final imageParts = <MultipartFile>[];
+    for (final image in draft.images) {
+      imageParts.add(await _toMultipart(image));
+    }
 
     final formData = FormData.fromMap({
-      'category': draft.category!.name,
-      'description': draft.description,
-      'city': draft.city,
-      'pin_code': draft.pinCode,
-      if (draft.latitude != null) 'latitude': draft.latitude.toString(),
-      if (draft.longitude != null) 'longitude': draft.longitude.toString(),
+      'category': category.name,
+      'description': draft.description.trim(),
+      'city': draft.city.trim(),
+      'pin_code': draft.pinCode.trim(),
+      // Coordinates are only valid as a pair; never send half of one.
+      if (draft.latitude != null && draft.longitude != null) ...{
+        'latitude': draft.latitude.toString(),
+        'longitude': draft.longitude.toString(),
+      },
       // A List value under one key is Dio's documented way to send
       // multiple files for the same form field — matches FastAPI's
       // `images: list[UploadFile] = File(...)` on the other end.
@@ -43,8 +65,73 @@ class ReportsRepository {
     final response = await _apiClient.post<Map<String, dynamic>>(
       ApiEndpoints.reports,
       data: formData,
+      options: Options(
+        sendTimeout: _submitTimeout,
+        receiveTimeout: _submitTimeout,
+      ),
     );
     return Report.fromJson(response.data!);
+  }
+
+  /// Builds the multipart part for one picked photo with an EXPLICIT
+  /// content type, and rejects what the backend would reject — before
+  /// uploading anything.
+  ///
+  /// Dio otherwise guesses the type from the file *name*, falling back to
+  /// `application/octet-stream` when there's no recognizable extension
+  /// (common for gallery picks on Android), and the backend answers that
+  /// with a 400 "Unsupported image type". The type is read from the file's
+  /// own first bytes instead, so it always matches the real content.
+  Future<MultipartFile> _toMultipart(XFile image) async {
+    final length = await image.length();
+    if (length == 0) {
+      throw const ApiException(message: 'One of the selected photos is empty.');
+    }
+    if (length > maxImageBytes) {
+      throw const ApiException(message: 'Each photo must be smaller than 8 MB.');
+    }
+
+    final header = <int>[];
+    await for (final chunk in image.openRead(0, 12)) {
+      header.addAll(chunk);
+      if (header.length >= 12) break;
+    }
+    final contentType = detectImageContentType(header);
+    if (contentType == null) {
+      throw const ApiException(
+        message: 'Only JPEG, PNG or WebP photos can be attached.',
+      );
+    }
+
+    return MultipartFile.fromFile(
+      image.path,
+      filename: image.name.isEmpty ? 'photo.${contentType.subtype}' : image.name,
+      contentType: contentType,
+    );
+  }
+
+  /// JPEG / PNG / WebP by magic bytes (the only types the backend accepts),
+  /// or null for anything else (e.g. HEIC, GIF, a non-image).
+  @visibleForTesting
+  static DioMediaType? detectImageContentType(List<int> bytes) {
+    bool startsWith(List<int> prefix) =>
+        bytes.length >= prefix.length &&
+        List.generate(prefix.length, (i) => bytes[i] == prefix[i]).every((m) => m);
+
+    if (startsWith(const [0xFF, 0xD8, 0xFF])) return DioMediaType('image', 'jpeg');
+    if (startsWith(const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) {
+      return DioMediaType('image', 'png');
+    }
+    // WebP: "RIFF" <4-byte size> "WEBP"
+    if (bytes.length >= 12 &&
+        startsWith(const [0x52, 0x49, 0x46, 0x46]) &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return DioMediaType('image', 'webp');
+    }
+    return null;
   }
 
   /// Fetches a single report by id (Step 7) — public, works whether or not

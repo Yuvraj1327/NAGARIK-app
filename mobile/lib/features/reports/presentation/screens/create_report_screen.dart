@@ -11,6 +11,7 @@ import 'package:nagarik/core/constants/report_status.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/features/discovery/presentation/providers/discovery_providers.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/data/reports_repository.dart';
 import 'package:nagarik/features/reports/domain/report_draft.dart';
@@ -78,9 +79,25 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 
   Future<void> _submitDraft() async {
+    // A second tap while the first upload is still running would create a
+    // duplicate report.
+    if (_isSubmitting) return;
+    // Captured before the (long) upload: `ref` must not be used once this
+    // widget has been disposed, but the container outlives it.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final repository = ref.read(reportsRepositoryProvider);
     setState(() => _isSubmitting = true);
     try {
-      final submitted = await ref.read(reportsRepositoryProvider).submitReport(_draft);
+      final submitted = await repository.submitReport(_draft);
+
+      // The new report must show up in the lists that are already alive
+      // (the tab shell keeps Home / My Reports mounted), not only after a
+      // manual pull-to-refresh. Done before the `mounted` check so it
+      // still happens if the user navigated away mid-upload.
+      container.invalidate(homeFeedProvider);
+      container.invalidate(nearbyReportsProvider);
+      container.invalidate(myReportsProvider);
+      container.invalidate(reportStatsProvider);
       if (!mounted) return;
 
       await showDialog<void>(
@@ -103,6 +120,17 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
 
       if (!mounted) return;
       context.go('/home');
+    } on ApiException catch (error) {
+      // `ApiClient` rethrows every Dio failure as an [ApiException] carrying
+      // the server's own `detail` (e.g. "Unsupported image type"), so that
+      // is what has to be caught here — the old `on DioException` branch
+      // never matched and every failure fell through to the generic text.
+      if (!mounted) return;
+      _showMessage(
+        error.isNetworkError
+            ? 'Could not reach the server. Check your connection and try again.'
+            : error.message,
+      );
     } on DioException catch (error) {
       if (!mounted) return;
       final apiError = error.error;
@@ -484,6 +512,12 @@ class _ImagesStepState extends State<_ImagesStep> {
   final _picker = ImagePicker();
   bool _isPicking = false;
 
+  // Phone cameras routinely produce 5-12 MB photos, which the backend would
+  // reject (8 MB per image). Downscaling/recompressing at pick time keeps
+  // them well under the limit, and is plenty for a civic-issue photo.
+  static const double _maxDimension = 1920;
+  static const int _imageQuality = 85;
+
   int get _remainingSlots => ReportsRepository.maxImages - widget.draft.images.length;
 
   Future<void> _pickFromGallery() async {
@@ -493,9 +527,20 @@ class _ImagesStepState extends State<_ImagesStep> {
     }
     setState(() => _isPicking = true);
     try {
-      final picked = await _picker.pickMultiImage(limit: _remainingSlots);
+      final slots = _remainingSlots;
+      final picked = await _picker.pickMultiImage(
+        limit: slots,
+        maxWidth: _maxDimension,
+        maxHeight: _maxDimension,
+        imageQuality: _imageQuality,
+      );
       if (picked.isNotEmpty && mounted) {
-        setState(() => widget.draft.images.addAll(picked));
+        // `limit` is only a hint ("may be ignored by platforms"), so
+        // enforce the cap here too or the backend would reject the report.
+        setState(() => widget.draft.images.addAll(picked.take(slots)));
+        if (picked.length > slots) {
+          _showMessage('Only ${ReportsRepository.maxImages} photos can be attached.');
+        }
       }
     } catch (_) {
       _showMessage('Could not open the photo library. Please try again.');
@@ -511,7 +556,12 @@ class _ImagesStepState extends State<_ImagesStep> {
     }
     setState(() => _isPicking = true);
     try {
-      final photo = await _picker.pickImage(source: ImageSource.camera);
+      final photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: _maxDimension,
+        maxHeight: _maxDimension,
+        imageQuality: _imageQuality,
+      );
       if (photo != null && mounted) {
         setState(() => widget.draft.images.add(photo));
       }
