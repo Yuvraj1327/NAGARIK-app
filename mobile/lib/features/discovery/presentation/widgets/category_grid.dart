@@ -25,7 +25,7 @@ class CategoryGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: AppSpacing.sm,
       crossAxisSpacing: AppSpacing.sm,
-      childAspectRatio: 0.85,
+      childAspectRatio: 1.0,
       children: [
         for (final (index, category) in ReportCategory.values.indexed)
           FadeSlideIn(
@@ -70,13 +70,16 @@ class _CategoryTile extends StatelessWidget {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs, horizontal: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: AppSpacing.xs),
             child: Text(
               category.label,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall,
+              style: Theme.of(context)
+                  .textTheme
+                  .labelSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
         ],

@@ -101,24 +101,23 @@ class HomeFeedScreen extends ConsumerWidget {
 class _GreetingAndLocation extends ConsumerWidget {
   const _GreetingAndLocation();
 
-  static String _greeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
-  }
+  /// "Hello, Asha Rao 👋", or "Hello there 👋" while the profile is still
+  /// loading, failed to load, or has no name on it (never the email).
+  static String greetingFor(String? name) => name != null ? 'Hello, $name 👋' : 'Hello there 👋';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final name = profileAsync.asData?.value.displayName;
+    final name = profileAsync.asData?.value.nameOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          name != null ? '${_greeting()}, $name' : _greeting(),
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          greetingFor(name),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: AppSpacing.xs),
         const LocationIndicator(),

@@ -20,6 +20,8 @@ class AppTextField extends StatelessWidget {
     this.enabled = true,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
     this.focusNode,
+    this.dense = false,
+    this.showCounter = true,
   });
 
   final String label;
@@ -48,6 +50,14 @@ class AppTextField extends StatelessWidget {
   /// unaffected (Flutter creates and owns an internal node as before).
   final FocusNode? focusNode;
 
+  /// Compact vertical padding, for fields packed into filter bars/rows
+  /// (Search) rather than standalone form fields.
+  final bool dense;
+
+  /// Set false to hide the "n/maxLength" counter [maxLength] otherwise
+  /// shows — the length is still enforced, it just doesn't take a line.
+  final bool showCounter;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
@@ -66,6 +76,11 @@ class AppTextField extends StatelessWidget {
         labelText: label,
         hintText: hintText,
         prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+        isDense: dense,
+        counterText: showCounter ? null : '',
+        contentPadding: dense
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12)
+            : null,
       ),
     );
   }

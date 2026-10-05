@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,32 +32,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final _nameFocus = FocusNode();
-  final _emailFocus = FocusNode();
-  final _passwordFocus = FocusNode();
-  final _confirmFocus = FocusNode();
   bool _isSubmitting = false;
-
-  // NAGARIK Theme upgrade: true while any field has focus, driving the
-  // hero image's blur-in/restore — same mechanism as LoginScreen's
-  // `_isFieldFocused` (see its doc comment).
-  bool _isFieldFocused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    for (final node in [_nameFocus, _emailFocus, _passwordFocus, _confirmFocus]) {
-      node.addListener(_onFieldFocusChange);
-    }
-  }
-
-  void _onFieldFocusChange() {
-    final focused = _nameFocus.hasFocus ||
-        _emailFocus.hasFocus ||
-        _passwordFocus.hasFocus ||
-        _confirmFocus.hasFocus;
-    if (focused != _isFieldFocused) setState(() => _isFieldFocused = focused);
-  }
 
   Future<void> _handleSignup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -121,36 +94,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               child: SizedBox(
                 width: double.infinity,
                 height: heroHeight,
-                // Focus-blur (NAGARIK Theme upgrade) — see LoginScreen's
-                // identical block for the full explanation; the form below
-                // is a separate widget and always stays sharp.
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(end: _isFieldFocused ? 6.0 : 0.0),
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOut,
-                      builder: (context, sigma, child) => ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                        child: child,
-                      ),
-                      child: Image.asset(
-                        'assets/images/auth_hero.jpg',
-                        width: double.infinity,
-                        height: heroHeight,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    AnimatedOpacity(
-                      opacity: _isFieldFocused ? 1 : 0,
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOut,
-                      child: const DecoratedBox(
-                        decoration: BoxDecoration(color: Color(0x5912213A)),
-                      ),
-                    ),
-                  ],
+                // The photo is always shown clear and unchanged — focusing a
+                // form field below never blurs or tints it.
+                child: Image.asset(
+                  'assets/images/auth_hero.jpg',
+                  width: double.infinity,
+                  height: heroHeight,
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
@@ -199,7 +149,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             child: AppTextField(
                               label: 'Full name',
                               controller: _nameController,
-                              focusNode: _nameFocus,
                               prefixIcon: Icons.person_outline,
                               textInputAction: TextInputAction.next,
                               validator: (value) => (value == null || value.trim().isEmpty)
@@ -213,7 +162,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             child: AppTextField(
                               label: 'Email',
                               controller: _emailController,
-                              focusNode: _emailFocus,
                               keyboardType: TextInputType.emailAddress,
                               prefixIcon: Icons.email_outlined,
                               textInputAction: TextInputAction.next,
@@ -233,7 +181,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             child: AppTextField(
                               label: 'Password',
                               controller: _passwordController,
-                              focusNode: _passwordFocus,
                               obscureText: true,
                               prefixIcon: Icons.lock_outline,
                               textInputAction: TextInputAction.next,
@@ -251,7 +198,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             child: AppTextField(
                               label: 'Confirm password',
                               controller: _confirmController,
-                              focusNode: _confirmFocus,
                               obscureText: true,
                               prefixIcon: Icons.lock_outline,
                               textInputAction: TextInputAction.done,
@@ -305,10 +251,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
-    _nameFocus.dispose();
-    _emailFocus.dispose();
-    _passwordFocus.dispose();
-    _confirmFocus.dispose();
     super.dispose();
   }
 }

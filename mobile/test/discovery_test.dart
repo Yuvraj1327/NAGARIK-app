@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/constants/report_status.dart';
@@ -123,6 +124,9 @@ void main() {
           ),
         ),
       );
+
+      // Let each tile's staggered FadeSlideIn start-delay timer fire.
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Water'));
       expect(tapped, ReportCategory.water);

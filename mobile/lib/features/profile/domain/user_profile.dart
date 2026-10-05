@@ -26,11 +26,15 @@ class UserProfile {
     );
   }
 
+  /// The user's trimmed full name, or `null` if they never gave one — unlike
+  /// [displayName], never falls back to the email, for places (Home's
+  /// greeting) where showing an email address would read wrong.
+  String? get nameOrNull {
+    final name = fullName?.trim();
+    return name != null && name.isNotEmpty ? name : null;
+  }
+
   /// The name shown in the UI: the user's full name if they gave one at
   /// signup, otherwise their email.
-  String get displayName {
-    final name = fullName?.trim();
-    if (name != null && name.isNotEmpty) return name;
-    return email ?? 'Citizen';
-  }
+  String get displayName => nameOrNull ?? email ?? 'Citizen';
 }
