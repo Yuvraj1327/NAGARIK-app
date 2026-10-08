@@ -6,6 +6,9 @@
     <!-- "Use current location" on the Report an Issue screen (geolocator). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Onboarding "Permissions" step (permission_handler): Permission.camera
+         always reports denied on Android unless CAMERA is declared here. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="nagarik"
         android:name="${applicationName}"

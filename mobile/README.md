@@ -206,6 +206,71 @@ this is standard Flutter behavior, not a bug in this app. The same camera/
 photo-library permissions also cover Edit Profile's photo picker (Official
 Logo & User Profile Photo upgrade) — no separate declaration needed.
 
+**Onboarding redesign's `permission_handler`** reads these exact same
+manifest/`Info.plist` entries, plus `android.permission.CAMERA` in
+`AndroidManifest.xml` (already added) — without it `Permission.camera`
+always reports denied on Android. On iOS
+only, `permission_handler` additionally needs each permission group it
+uses enabled via a build macro, since its iOS plugin ships every
+permission type behind a compile flag to keep apps that don't need them
+smaller. Once `ios/` exists, add to **`ios/Podfile`** (inside the
+`post_install do |installer|` block's `installer.pods_project.targets.each
+do |target|` loop, alongside any entries already there):
+
+```ruby
+target.build_configurations.each do |config|
+  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+  config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << [
+    'PERMISSION_LOCATION=1',
+    'PERMISSION_CAMERA=1',
+  ]
+end
+```
+
+Without this, the "Permissions" step's two "Allow" buttons compile fine
+but the underlying iOS plugin silently reports every permission as
+`denied` — again, standard `permission_handler` behavior, not a bug here.
+
+## Google Maps setup (required for the Report Issue "Place" step map)
+
+Report Issue redesign: the "Place" step's map (`LocationPickerMap`) uses
+`google_maps_flutter`, a **different** mapping package from the
+`flutter_map`/OpenStreetMap one Search/Nearby use (deliberately — see
+`report_map.dart` and `pubspec.yaml`'s own comments for why that one avoids
+exactly what this section is about). `google_maps_flutter` needs a
+billing-enabled Google Maps API key, configured natively per platform —
+none of which exists yet since this project has never been through
+`flutter create` (see "Native permissions" above for the same caveat).
+Once you've scaffolded `android/`/`ios/`:
+
+1. **Create an API key** in Google Cloud Console (APIs & Services →
+   Credentials → Create Credentials → API key), with the **Maps SDK for
+   Android** and **Maps SDK for iOS** APIs enabled for it, and billing
+   enabled on the project (Google requires billing even within the free
+   monthly usage tier). Restrict the key to those two APIs and, ideally,
+   to your app's Android package name/SHA-1 and iOS bundle ID once you
+   have them.
+2. **`android/app/src/main/AndroidManifest.xml`** — add inside
+   `<application>`:
+   ```xml
+   <meta-data
+       android:name="com.google.android.geo.API_KEY"
+       android:value="YOUR_ANDROID_API_KEY" />
+   ```
+3. **`ios/Runner/AppDelegate.swift`** — add the import and one line inside
+   `application(_:didFinishLaunchingWithOptions:)`, before it returns:
+   ```swift
+   import GoogleMaps
+   // ...
+   GMSServices.provideAPIKey("YOUR_IOS_API_KEY")
+   ```
+
+Without this, the Place step's map renders a blank/grey tile area at
+runtime (a `google_maps_flutter`/Google Maps SDK behavior, not a bug in
+this app's Dart code) — everything else in report creation (category,
+photos, description, City/PIN fields, submission) keeps working normally
+either way, since those never depend on the map actually rendering tiles.
+
 ## App icons
 
 `pubspec.yaml` has a `flutter_launcher_icons:` block already pointing at
@@ -530,3 +595,34 @@ configured yet" error.
 None of this blocks running the app today — leave both `.env` values blank
 and everything works except the Google button, which shows a clear error
 instead of crashing anything.
+
+## Onboarding (first-run Welcome + 7 optional steps)
+
+A first-time, signed-out launch now opens on a new onboarding flow —
+Welcome, then Language / About / Mobile Number / Age / Data & Privacy /
+Permissions / Preferences, each fully optional and skippable — before
+handing off to the existing Auth Welcome screen (`/welcome`, unchanged).
+See `docs/ARCHITECTURE.md` section 24 for the full write-up; in short:
+
+- **Shown once**: completing or skipping the flow (at any point) saves a
+  local "onboarding done" flag (`shared_preferences`, via the new
+  `OnboardingService`) so it never shows again on this device, and a
+  signed-in user never sees it at all.
+- **Every step is optional** — Skip always works, Back always works, and
+  nothing here blocks reaching the real app.
+- **Location + Camera/Photos permissions** (Step 6) use real OS prompts
+  via the new `permission_handler` dependency — see "Native permissions"
+  above for the one-time iOS Podfile macro this needs.
+- **The optional mobile number** (Step 3) is saved locally, then written
+  into the real Supabase `user_metadata` the first time the person
+  actually signs up/in afterward (`AuthRepository`) — never used for
+  sign-in itself; Email/Password and "Continue with Google" are unchanged
+  and remain the only two ways in.
+- **Nothing added**: no SOS/emergency-contact/"I'm Safe" preference, no
+  push notifications, no real in-app translation — see
+  `docs/ARCHITECTURE.md` for why each was deliberately left out.
+
+Nothing above blocks running the app today — the whole flow works with
+zero configuration; only Step 6's two "Allow" buttons need the iOS Podfile
+macro (once this project has a real `ios/` folder) to report anything
+other than "denied" on iOS specifically.

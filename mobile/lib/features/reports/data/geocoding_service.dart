@@ -33,4 +33,42 @@ class GeocodingService {
       return null;
     }
   }
+
+  /// Best-effort city + postal code for a coordinate (Report Issue
+  /// redesign's "Place" step) — richer than [cityFromCoordinates] (which
+  /// Home's location indicator still uses unchanged), since the Place step
+  /// can also auto-fill the report's PIN code field from the same lookup.
+  /// Same non-fatal contract: a field that can't be determined comes back
+  /// `null` rather than throwing, so the person can always fill it in by
+  /// hand instead.
+  Future<({String? city, String? postalCode})> placeFromCoordinates(
+    double latitude,
+    double longitude,
+  ) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(latitude, longitude);
+      if (placemarks.isEmpty) return (city: null, postalCode: null);
+      final place = placemarks.first;
+
+      String? city;
+      for (final candidate in [
+        place.locality,
+        place.subAdministrativeArea,
+        place.administrativeArea,
+      ]) {
+        final trimmed = candidate?.trim();
+        if (trimmed != null && trimmed.isNotEmpty) {
+          city = trimmed;
+          break;
+        }
+      }
+
+      final postalTrimmed = place.postalCode?.trim() ?? '';
+      final postalCode = postalTrimmed.isEmpty ? null : postalTrimmed;
+
+      return (city: city, postalCode: postalCode);
+    } catch (_) {
+      return (city: null, postalCode: null);
+    }
+  }
 }

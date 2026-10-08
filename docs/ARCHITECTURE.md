@@ -1549,3 +1549,245 @@ exercised end-to-end here — no emulator/device, and no real Google Cloud
 OAuth client IDs to test against — so this is unverified beyond static
 analysis and manual code review; test it for real with your own client IDs
 before shipping.
+
+## 23. Report Issue redesign: five full-screen steps, Google Maps "Place" step
+
+Report creation moves from a single vertical accordion `Stepper`
+(Category → Description → Location → Photos → Review) to five full-screen
+steps — **Type → Photo → Place → Details → Review** — matching the
+structure/polish of reference screenshots supplied with this request
+without reusing their branding, copy, phone-OTP auth, or extra fields the
+existing backend doesn't support. Email + Google auth (section 22) is
+unchanged; this upgrade is scoped entirely to
+`features/reports/presentation/screens/create_report_screen.dart` and two
+new widgets.
+
+**`CreateReportScreen` rewrite:** `_currentStep` (0–4) now drives a single
+`AnimatedSwitcher` (fade + slight upward slide, 240ms) over one
+`_StepScaffold` per step, inside the same `ResponsiveCenter` the old
+accordion used, with a `ReportStepIndicator` progress bar (new widget, a
+row of animated pill segments) replacing the `Stepper`'s own dot-and-line
+chrome. The back icon becomes a close (×) on step 0 and pops the route;
+every other step just decrements `_currentStep`. `_onContinue()` validates
+only the step being left — category chosen (step 0), the Place step's
+`Form` (step 2), the Details step's `Form` (step 3) — via a plain
+`if`/`else if` chain (not a `switch`, which can't let a non-empty case
+fall through to the next without an explicit `continue <label>;`, and
+nothing here needs that: at most one of the three conditions is ever true
+per call since `_currentStep` is a single value) — then either advances or
+calls the same, unchanged `ReportsRepository.submitReport`.
+
+**Place step (`_PlaceStep`) — new, Google Maps:** a rationale card explains
+*why* location is being asked for before anything native-permission-related
+can fire, then a real `GoogleMap` (`LocationPickerMap`, new widget) with a
+pin fixed at the exact screen center — the person pans the map, not the
+pin, to choose a point, the same pattern the reference screenshots use. A
+"locate me" button calls the existing `LocationService.getCurrentPosition()`
+(unchanged — same permission handling the old Location step and Home's
+location indicator already relied on) and animates the camera there.
+Whenever the camera settles, `GeocodingService.placeFromCoordinates` (new
+method, alongside the existing `cityFromCoordinates` Home still uses
+unchanged) reverse-geocodes the center into a best-effort city + postal
+code, auto-filling the step's City/PIN text fields unless the person has
+already started typing in one (`_cityEditedByUser`/`_pinEditedByUser`
+flags) — both fields stay fully editable by hand regardless. **No fake
+location is ever written**: `LocationPickerMap.onPositionChanged` —
+the only thing that writes `ReportDraft.latitude`/`longitude` — explicitly
+swallows the map's very first `onCameraIdle` (`_hasHadFirstIdle` in
+`_LocationPickerMapState`), since `google_maps_flutter` fires that
+callback once on initial layout too, not only after a real pan; without
+that guard, the neutral starting view (the draft's own coordinates if
+already set, else a neutral India-wide default) would get written into
+the draft the instant the step appeared, before the person touched
+anything. A report submitted without ever touching the map or "locate me"
+simply has no coordinates, exactly as before this redesign.
+
+This deliberately reintroduces `google_maps_flutter` as a **second**,
+separate mapping package alongside `flutter_map` (Search/Nearby, section
+17) — `flutter_map`'s own doc comment explains it was chosen specifically
+to avoid needing a Google Maps API key and native per-platform
+configuration, which is exactly what this step's explicit "use Google
+Maps" instruction requires. The trade-off is scoped as narrowly as
+possible: only `LocationPickerMap`/the Place step uses it; `ReportMap`
+(Search/Nearby) is completely untouched. See `mobile/README.md`'s new
+"Google Maps setup" section for the Android `AndroidManifest.xml`/iOS
+`AppDelegate.swift` API key wiring this needs once the project has real
+`android/`/`ios/` folders (it has neither yet, so that wiring can't be
+done from this sandbox) — without it the map renders a blank/grey area at
+runtime, while every other part of report creation keeps working.
+
+**Review step (`_ReviewStep`):** replaces the old single `ReportCard`
+preview with one `_ReviewSection` card per step (Type/Photos/Place/Details),
+each with its own "Edit" link (`onEditStep(stepIndex)`) that jumps straight
+back to that step rather than backing all the way through a linear stepper.
+Submission is unchanged — still the real `ReportsRepository.submitReport`
+against FastAPI + Supabase, no mock data.
+
+**Success screen (`_SuccessView`):** shown by `CreateReportScreen.build()`
+itself once `_submitDraft` succeeds (`if (_submittedReport != null) return
+_SuccessView(...)`) — no new route was added, honoring "do not create
+duplicate routes." Shows the real `Report.referenceId` the backend
+assigned (`SelectableText`, so it can be copied) and its `StatusBadge`,
+with three buttons to the already-existing `/report/:id`, `/my-reports`,
+and `/home` routes.
+
+**Not added:** the reference screenshots' phone-OTP auth, "is anyone
+hurt"/"is it still happening" fields, and the location/data-consent and
+alert-preference screens were all deliberately left out — OTP would
+replace the existing, working Email + Google auth the brief said to keep,
+and the extra fields have no home in the existing `Report`/`ReportDraft`
+model or backend schema, which this step does not touch.
+
+**Verification:** no Flutter SDK in this sandbox, so verified via
+`dart_check.py` on every new/edited file and again across the full
+`lib`/`test` tree (no existing test references the old `Stepper`,
+`_CategoryStep`, or `CreateReportScreen`'s internals, so nothing needed
+updating there), plus manual review of the full rewrite's nesting
+(`AnimatedSwitcher` inside `SingleChildScrollView`, the `_PlaceStep` form,
+the `GoogleMap`/`Stack` layout in `LocationPickerMap`). The map itself —
+tile rendering, camera gestures, the first-idle guard's real-world timing —
+could not be exercised end-to-end here (no emulator/device and no real
+Google Maps API key configured), so test it for real on a device after
+completing the "Google Maps setup" steps in `mobile/README.md`.
+
+## 24. Onboarding redesign: Welcome + 7 optional steps before the auth gate
+
+A new first-run flow — `OnboardingScreen`
+(`features/onboarding/presentation/screens/onboarding_screen.dart`) — now
+sits in front of the existing `AuthWelcomeScreen` (section 22) for a
+first-time, signed-out launch: a Welcome page, then seven numbered steps
+(Language, About, Mobile Number, Age, Data & Privacy, Permissions,
+Preferences), every one of them optional. A reference app's onboarding
+was used only to gauge structure and pacing (one idea per screen, a
+progress indicator, a visible Skip everywhere) — not its branding, colors,
+phone-OTP login, or features this app has no use for (SOS, emergency
+contacts, live location sharing, "I'm Safe", emergency SMS). Android + iOS
+only, same as every other upgrade.
+
+**New feature folder** (`features/onboarding`), following the project's
+usual `data`/`domain`/`presentation` split:
+- `domain/onboarding_language.dart`, `domain/age_group.dart` — the two
+  small enums Steps 1 and 4 choose between.
+- `domain/onboarding_draft.dart` — a plain mutable holder for everything
+  collected across the flow, mirroring `ReportDraft`'s exact role for
+  report creation. Nothing in it is persisted automatically: a step's own
+  Continue/Finish action explicitly saves the relevant field through
+  `OnboardingService`; that step's Skip advances without ever reading
+  from it, so a half-typed value is simply dropped, never silently kept.
+- `data/onboarding_service.dart` — local-only persistence
+  (`shared_preferences`, the same package `ThemePreferenceController`
+  already uses), defensively wrapped the same way that controller is.
+  Tracks whether onboarding has been finished/skipped (shown once, ever,
+  per device — a signed-in user is never shown it at all, enforced by the
+  auth gate below rather than by this flag) plus the language and age
+  choices and one write-once "pending phone number" (see below).
+
+**`OnboardingScreen` itself** reuses `CreateReportScreen`'s exact
+architecture (section 23) rather than inventing a second one: a single
+`int _currentStep` (0 = Welcome, 1–7 = the numbered steps) drives an
+`AnimatedSwitcher` cross-fade+slide between step bodies, inside the same
+`ResponsiveCenter` layout, with the already-existing `ReportStepIndicator`
+widget reused as-is for the 7-segment progress bar (it only ever needed
+`stepCount`/`currentStep`, nothing Report-specific) — rather than building
+a near-identical progress widget a second time. `_onContinue()` uses a
+plain `if`-chain keyed to `_currentStep`, not a `switch`, for the same
+reason `CreateReportScreen._onContinue()` does (section 23): a standard
+Dart `switch` can't let a non-empty case fall through to the next one
+without an explicit `continue <label>;`, and nothing here needs that
+anyway since only one `_currentStep` value is ever active per call.
+
+**Welcome page** is an original layout, not a copy of either the
+reference app or this project's own `AuthWelcomeScreen`: the same real
+`auth_hero.jpg` asset and brand tagline ("A CIVIC GOOD INITIATIVE" / "See
+it. Report it. Get it fixed.") appear on both screens deliberately (one
+app, one consistent voice), but Welcome frames the photo as a rounded card
+on a light background rather than `AuthWelcomeScreen`'s full-bleed dark
+scrim, and its call to action is "Get Started" (into onboarding) rather
+than an actual sign-in action — the two screens serve different moments
+and stay visually distinguishable at a glance. Its own small 8-dot row is
+a generic "there's more ahead" indicator, kept deliberately separate from
+the 7-segment `ReportStepIndicator` the numbered steps use (8 = Welcome
+plus the 7 steps; the indicator proper only ever counts the 7).
+
+**Skip is two different things, by design**, matching the brief exactly:
+Welcome's top-right "Skip" leaves the *entire* flow in one tap (marks
+onboarding finished, goes to `/welcome`); each numbered step's own
+footer "Skip" only skips *that* step and moves to the next one, discarding
+nothing the person reached in previous steps. Back (header arrow, steps
+1–7 only) always works, including from Step 1 back to Welcome.
+
+**Step-by-step choices worth calling out:**
+- **Step 1 (Language)**: English/Hindi/Marathi selection UI only — picking
+  one does **not** translate the rest of the app. Full in-app localization
+  is a separate, much larger effort (new `.arb` files, `flutter_localizations`,
+  every screen's strings) that stays out of scope here, consistent with
+  this project's standing exclusion of "multi-language support" absent a
+  dedicated request to actually build it; the chosen value is saved
+  locally and shown back (with a "Change" link) on Step 7.
+- **Step 3 (Mobile Number)**: optional, saved locally as a "pending phone"
+  value — never wired to sign-in (no OTP path exists anywhere in
+  `AuthRepository`). `AuthRepository.signIn`/`signUp` (only once a session
+  actually exists)/`signInWithGoogle` each fire a best-effort, one-time
+  `_syncPendingOnboardingPhone()` afterward, which writes it into the
+  real account's Supabase `user_metadata` via a new, additive
+  `AuthRepository.updatePhoneNumber` (same mechanism as
+  `updateFullName`/`updateAvatarPath`, section 19) and only then clears
+  the local copy — so a sync that fails (e.g. offline) just retries on the
+  next successful sign-in instead of losing the value. This was the one
+  field in this step worth actually connecting end-to-end, since "save it
+  as optional profile/contact information" has a real, already-existing
+  place to live (`user_metadata`) without any backend/schema change;
+  `UserProfile`/Edit Profile don't surface it yet — a natural follow-up if
+  this should become an editable profile field later.
+- **Step 4 (Age)**: purely informational and optional — no download/age
+  gate anywhere, per the brief's "do not unnecessarily block the app".
+- **Step 5 (Data & Privacy)**: two switches that *preview* the two real
+  permission prompts Step 6 triggers, defaulting to on. Turning one off
+  here means Step 6 skips triggering that OS prompt at all (shown instead
+  as an already-opted-out state with a note that it can still be changed
+  later) — a real, functional connection between the two steps rather
+  than two independent, cosmetic toggles.
+- **Step 6 (Permissions)**: real Location/Camera prompts via a new
+  `permission_handler` dependency (see `pubspec.yaml`'s and
+  `mobile/README.md`'s comments for exactly why — `geolocator` and
+  `image_picker` only request their permission as a side effect of
+  actually fetching a position or opening the camera/gallery, which would
+  be disruptive to trigger just to show a rationale here). Denying either
+  one, or the Step 5 opt-out above, never blocks Continue.
+- **Step 7 (Preferences)**: deliberately reuses the real, already-wired
+  `themePreferenceProvider` (System/Light/Dark, section 15) rather than a
+  second, cosmetic copy of it, plus the Step 1 language read-back. No
+  SOS/alert/notification-style preference was added — out of scope, per
+  the brief's explicit exclusion list and this project's standing one.
+
+**Auth gate + routing** (`core/routing/app_router.dart`, `app.dart`): a
+new `/onboarding` route joins `/welcome`/`/login`/`/signup` in the
+`redirect`'s "auth-adjacent" set — unauthenticated users aren't bounced
+away from any of the four, signed-in users are bounced away from all four
+to `/home`. Critically, that `redirect` does **not** depend on
+onboarding-completion state at all; `appRouterProvider` became
+`Provider.family<GoRouter, String>` taking the computed
+`initialLocation`, decided once in `app.dart`'s `_bootstrap` (alongside
+its existing `Env.load()`/`initSupabase()` awaits, behind the same splash
+screen) by checking `OnboardingService.hasFinishedOnboarding()` only when
+there's no signed-in session yet. `OnboardingScreen` itself navigates
+away with `context.go('/welcome')` once finished or skipped, rather than
+relying on the redirect to notice a flag that changed mid-session — this
+keeps the auth gate exactly as simple as it was before this upgrade
+(section 22), with onboarding layered on top instead of threaded through
+it.
+
+**Verification:** no Flutter SDK in this sandbox, so verified via
+`dart_check.py` on every new/edited file and again across the full
+`lib`/`test` tree (no existing test touches `appRouterProvider`,
+`AuthRepository`, or onboarding, so nothing needed updating there — the
+router test in `widget_test.dart` already builds its own standalone
+`GoRouter`, not the real provider). Caught and fixed, before ever running
+that checker, the exact same `switch`-fallthrough mistake section 23's
+write-up flags for `CreateReportScreen` — `_onContinue()` here was written
+the same way and needed the same `if`-chain fix. `permission_handler`'s
+real device prompts, the one-time phone `user_metadata` sync, and the
+Step 5/Step 6 opt-out connection could not be exercised end-to-end here
+(no emulator/device, no real backend session to sign in with) — test all
+three for real on a device, including actually denying a permission and
+confirming the app still proceeds.

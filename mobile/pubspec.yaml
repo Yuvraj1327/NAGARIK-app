@@ -82,6 +82,38 @@ dependencies:
   #    official Google-maintained Flutter package for exactly this. --
   google_sign_in: ^6.2.1
 
+  # -- Report Issue redesign: Google Maps for the new "Place" step's
+  #    location picker, per explicit request. This is a SEPARATE mapping
+  #    technology from `flutter_map` above, which Search/Nearby keeps using
+  #    unchanged — `flutter_map`'s own comment explains it was chosen
+  #    specifically to avoid exactly what this package needs: a billing-
+  #    enabled Google Cloud Maps API key, configured natively per platform
+  #    (Android `AndroidManifest.xml` meta-data, iOS `AppDelegate.swift`).
+  #    This project has no native android/ios folders yet (see
+  #    mobile/README.md), so that native wiring can't be done from here —
+  #    see mobile/README.md's new "Google Maps setup" section for the exact
+  #    one-time steps once this project has been through `flutter create`.
+  google_maps_flutter: ^2.9.0
+
+  # -- Onboarding redesign: Step 6 ("Permissions") needs to show a real
+  #    Location/Camera permission prompt with a rationale, continuing
+  #    either way, WITHOUT that prompt immediately doing anything invasive
+  #    (fetching a GPS fix, opening the camera UI). Neither existing
+  #    location/camera package offers that: `geolocator` only requests
+  #    permission as a side effect of actually fetching a position
+  #    (`LocationService.getCurrentPosition`), and `image_picker` only
+  #    requests camera/photo-library permission as a side effect of
+  #    actually opening the camera/gallery picker — both would be
+  #    disruptive triggered from onboarding just to show a permission
+  #    prompt. `permission_handler` is the standard, Flutter-team-
+  #    recommended package for exactly "ask for this permission on its
+  #    own"; it reads the same manifest/Info.plist declarations
+  #    `geolocator`/`image_picker` already need (see "Native permissions"
+  #    in mobile/README.md), so no new native permission strings are
+  #    required, only (on iOS, once this project has a real `ios/` folder)
+  #    the small Podfile macro mobile/README.md's new section documents.
+  permission_handler: ^11.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

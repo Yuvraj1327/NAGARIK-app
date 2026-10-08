@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:nagarik/core/config/env.dart';
+import 'package:nagarik/features/onboarding/data/onboarding_service.dart';
 
 /// Thin wrapper around Supabase Auth. This is the ONLY place in the app
 /// that calls `Supabase.instance.client.auth` directly — everything else
@@ -34,6 +35,10 @@ class AuthRepository {
     clientId: Env.googleIosClientId,
   );
 
+  // Onboarding redesign: one instance for this repository's lifetime, used
+  // only by [_syncPendingOnboardingPhone] below.
+  final OnboardingService _onboarding = OnboardingService();
+
   Session? get currentSession => _auth.currentSession;
 
   User? get currentUser => _auth.currentUser;
@@ -46,8 +51,8 @@ class AuthRepository {
     required String email,
     required String password,
     required String fullName,
-  }) {
-    return _auth.signUp(
+  }) async {
+    final response = await _auth.signUp(
       email: email,
       password: password,
       // Stored in the JWT's `user_metadata` claim, which is exactly what
@@ -55,13 +60,24 @@ class AuthRepository {
       // profiles table needed.
       data: {'full_name': fullName},
     );
+    // Only fires when this Supabase project has email confirmation
+    // disabled, so a session comes back immediately — see this file's own
+    // class doc comment and `SignupScreen`'s handling of the other case.
+    // When confirmation is required, the eventual first `signIn()` after
+    // confirming is what actually syncs it instead.
+    if (response.session != null) {
+      unawaited(_syncPendingOnboardingPhone());
+    }
+    return response;
   }
 
   Future<AuthResponse> signIn({
     required String email,
     required String password,
-  }) {
-    return _auth.signInWithPassword(email: email, password: password);
+  }) async {
+    final response = await _auth.signInWithPassword(email: email, password: password);
+    unawaited(_syncPendingOnboardingPhone());
+    return response;
   }
 
   /// "Continue with Google" (NAGARIK Theme upgrade): opens the platform's
@@ -96,11 +112,13 @@ class AuthRepository {
       );
     }
 
-    return _auth.signInWithIdToken(
+    final response = await _auth.signInWithIdToken(
       provider: OAuthProvider.google,
       idToken: idToken,
       accessToken: googleAuth.accessToken,
     );
+    unawaited(_syncPendingOnboardingPhone());
+    return response;
   }
 
   /// Clears the local session and revokes it server-side. `signOut()` on
@@ -144,6 +162,39 @@ class AuthRepository {
   /// actual Storage bytes. Pass `null` to clear it (Remove Photo).
   Future<void> updateAvatarPath(String? avatarPath) =>
       _updateMetadata({'avatar_path': avatarPath});
+
+  /// Updates the signed-in user's optional contact phone number (Onboarding
+  /// redesign) — collected, if at all, on the first-run onboarding flow's
+  /// "Mobile Number" step (`features/onboarding`). Never used for sign-in:
+  /// Email/Password and "Continue with Google" remain the only two ways
+  /// into the app; there is no OTP path anywhere in this class. Same
+  /// `user_metadata` mechanism as [updateFullName]/[updateAvatarPath].
+  /// [_syncPendingOnboardingPhone] below is the only current caller — kept
+  /// public so a future Edit Profile "Phone" field could call it directly
+  /// too.
+  Future<void> updatePhoneNumber(String? phone) => _updateMetadata({'phone': phone});
+
+  /// Best-effort, one-time carry-over of a phone number collected during
+  /// onboarding (before any account existed to attach it to) onto the
+  /// account that just signed in/up. Called from [signUp] (only once a
+  /// session actually exists — see that method), [signIn], and
+  /// [signInWithGoogle], always via `unawaited(...)` so a slow or failing
+  /// sync can never delay or fail a real sign-in/sign-up.
+  ///
+  /// Reads before clearing: [OnboardingService.getPendingPhoneNumber]
+  /// isn't consumed until [updatePhoneNumber] actually succeeds, so a
+  /// failure here (e.g. offline) just leaves it to retry on the next
+  /// successful auth event rather than silently losing the value.
+  Future<void> _syncPendingOnboardingPhone() async {
+    try {
+      final pending = await _onboarding.getPendingPhoneNumber();
+      if (pending == null || pending.isEmpty) return;
+      await updatePhoneNumber(pending);
+      await _onboarding.clearPendingPhoneNumber();
+    } catch (_) {
+      // Best-effort only.
+    }
+  }
 
   /// Merges [changes] into the user's existing `user_metadata` and pushes
   /// the result, then refreshes the session so the change is reflected in
