@@ -141,9 +141,11 @@ class AppDrawer extends ConsumerWidget {
                 icon: Icons.logout_rounded,
                 label: 'Logout',
                 destructive: true,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  confirmAndLogout(context, ref);
+                // Confirm BEFORE closing the drawer: popping first leaves this
+                // context unmounted, so the dialog could never be shown.
+                onTap: () async {
+                  await confirmAndLogout(context, ref);
+                  if (context.mounted) Navigator.of(context).pop();
                 },
               ),
             ),

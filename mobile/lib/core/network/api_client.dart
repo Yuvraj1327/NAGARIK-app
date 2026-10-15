@@ -70,6 +70,10 @@ class ApiClient {
     return _send(() => _dio.post<T>(path, data: data, options: options));
   }
 
+  Future<Response<T>> patch<T>(String path, {Object? data}) {
+    return _send(() => _dio.patch<T>(path, data: data));
+  }
+
   Future<Response<T>> delete<T>(String path) {
     return _send(() => _dio.delete<T>(path));
   }

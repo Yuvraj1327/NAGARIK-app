@@ -135,7 +135,7 @@ class AuthRepository {
   /// should ever block an actual logout.
   Future<void> signOut() async {
     await _auth.signOut();
-    unawaited(_googleSignIn.signOut().catchError((_) {}));
+    unawaited(_googleSignIn.signOut().then<void>((_) {}, onError: (_) {}));
   }
 
   /// Updates the signed-in user's display name (Profile -> Edit Profile).

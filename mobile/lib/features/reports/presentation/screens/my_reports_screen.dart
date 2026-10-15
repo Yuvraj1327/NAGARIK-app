@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nagarik/core/constants/report_status.dart';
+import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/routing/app_drawer.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/features/reports/presentation/widgets/edit_report_sheet.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
@@ -45,6 +47,54 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
   List<Report> _applyFilter(List<Report> reports) {
     if (_filter == null) return reports;
     return reports.where((report) => report.status == _filter).toList();
+  }
+
+  Future<void> _edit(Report report) async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => EditReportSheet(report: report),
+    );
+    if (saved == true) {
+      ref.invalidate(myReportsProvider);
+      ref.invalidate(reportByIdProvider(report.id));
+    }
+  }
+
+  Future<void> _delete(Report report) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete report?'),
+        content:
+            const Text('This permanently deletes the report and its photos.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(reportsRepositoryProvider).deleteReport(report.id);
+      ref.invalidate(myReportsProvider);
+      ref.invalidate(reportStatsProvider);
+      ref.invalidate(homeFeedProvider);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(error is ApiException
+            ? error.message
+            : 'Could not delete the report.'),
+      ));
+    }
   }
 
   @override
@@ -131,7 +181,9 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                             final report = filtered[index];
                             return FadeSlideIn(
                               delay: Duration(milliseconds: 30 * index),
-                              child: ReportCard(
+                              child: Stack(
+                                children: [
+                                  ReportCard(
                                 title: report.category.label,
                                 description: report.description,
                                 category: report.category,
@@ -143,6 +195,21 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                                     report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
                                 date: report.createdAt,
                                 onTap: () => context.push('/report/${report.id}'),
+                                  ),
+                                  Positioned(
+                                    top: 0,
+                                    right: 0,
+                                    child: PopupMenuButton<String>(
+                                      tooltip: 'Report options',
+                                      onSelected: (value) =>
+                                          value == 'edit' ? _edit(report) : _delete(report),
+                                      itemBuilder: (context) => const [
+                                        PopupMenuItem(value: 'edit', child: Text('Edit Report')),
+                                        PopupMenuItem(value: 'delete', child: Text('Delete Report')),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },

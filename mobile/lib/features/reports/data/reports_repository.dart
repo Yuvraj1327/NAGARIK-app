@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:nagarik/core/constants/api_endpoints.dart';
 import 'package:nagarik/core/constants/report_category.dart';
@@ -162,5 +163,46 @@ class ReportsRepository {
   /// currently saved succeeds rather than erroring.
   Future<void> unsaveReport(String reportId) async {
     await _apiClient.delete<void>('${ApiEndpoints.reports}/$reportId/save');
+  }
+
+  /// Edits the caller's own report (owner-only, enforced by the backend).
+  /// Only the given fields change; status is never sent. [removeImagePaths]
+  /// are existing `Report.imagePaths` to delete, [newImages] are uploaded.
+  Future<Report> updateReport(
+    String reportId, {
+    ReportCategory? category,
+    String? description,
+    String? city,
+    String? pinCode,
+    double? latitude,
+    double? longitude,
+    List<String> removeImagePaths = const [],
+    List<XFile> newImages = const [],
+  }) async {
+    final imageParts = await Future.wait(
+      newImages.map((image) => MultipartFile.fromFile(image.path, filename: image.name)),
+    );
+    final formData = FormData.fromMap({
+      if (category != null) 'category': category.name,
+      if (description != null) 'description': description,
+      if (city != null) 'city': city,
+      if (pinCode != null) 'pin_code': pinCode,
+      if (latitude != null && longitude != null) ...{
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+      },
+      if (removeImagePaths.isNotEmpty) 'remove_image_paths': removeImagePaths,
+      if (imageParts.isNotEmpty) 'images': imageParts,
+    });
+    final response = await _apiClient.patch<Map<String, dynamic>>(
+      '${ApiEndpoints.reports}/$reportId',
+      data: formData,
+    );
+    return Report.fromJson(response.data!);
+  }
+
+  /// Deletes the caller's own report (owner-only, enforced by the backend).
+  Future<void> deleteReport(String reportId) async {
+    await _apiClient.delete<void>('${ApiEndpoints.reports}/$reportId');
   }
 }

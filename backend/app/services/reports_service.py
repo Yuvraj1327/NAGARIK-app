@@ -196,6 +196,143 @@ async def create_report(
     return _row_to_response(saved_row, url_by_path)
 
 
+async def _validate_images(images: list[UploadFile]) -> list[tuple[str, bytes]]:
+    validated: list[tuple[str, bytes]] = []
+    for image in images:
+        if image.content_type not in ALLOWED_CONTENT_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported image type: {image.content_type}.",
+            )
+        contents = await image.read()
+        if not contents:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One of the attached images is empty.",
+            )
+        if len(contents) > MAX_IMAGE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Each image must be smaller than 8 MB.",
+            )
+        validated.append((image.content_type, contents))
+    return validated
+
+
+def _get_owned_report_row(supabase: Client, *, report_id: str, user_id: str) -> dict:
+    """Fetch a report row and enforce ownership: 404 if it doesn't exist,
+    403 if it belongs to someone else."""
+    try:
+        result = supabase.table("reports").select("*").eq("id", report_id).execute()
+    except Exception as exc:
+        _raise_for_supabase_error(
+            exc, fallback_detail="Failed to fetch the report. Please try again."
+        )
+    rows = result.data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found.")
+    row = rows[0]
+    if row.get("user_id") != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only modify your own reports.",
+        )
+    return row
+
+
+async def update_report(
+    *,
+    supabase: Client,
+    settings: Settings,
+    user_id: str,
+    report_id: str,
+    fields: dict,
+    remove_image_paths: list[str],
+    images: list[UploadFile],
+) -> ReportResponse:
+    """Owner-only edit of a report's basic details and photos. `status`,
+    `reference_id` and ownership are never touched. Removed images are
+    deleted from Storage only after the row update succeeds."""
+    row = _get_owned_report_row(supabase, report_id=report_id, user_id=user_id)
+    current_paths: list[str] = row.get("image_paths") or []
+
+    unknown = [path for path in remove_image_paths if path not in current_paths]
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove an image that doesn't belong to this report.",
+        )
+    kept_paths = [path for path in current_paths if path not in set(remove_image_paths)]
+    if len(kept_paths) + len(images) > MAX_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You can attach at most {MAX_IMAGES} images.",
+        )
+
+    validated = await _validate_images(images)
+    bucket = supabase.storage.from_(settings.SUPABASE_STORAGE_BUCKET)
+    uploaded_paths: list[str] = []
+    for content_type, contents in validated:
+        extension = _EXTENSION_BY_CONTENT_TYPE.get(content_type, "bin")
+        object_path = f"{user_id}/{uuid.uuid4()}.{extension}"
+        try:
+            bucket.upload(object_path, contents, {"content-type": content_type})
+        except Exception as exc:
+            _cleanup(bucket, uploaded_paths)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to upload one or more images. Please try again.",
+            ) from exc
+        uploaded_paths.append(object_path)
+
+    update = dict(fields)
+    if remove_image_paths or uploaded_paths:
+        update["image_paths"] = kept_paths + uploaded_paths
+
+    saved_row = row
+    if update:
+        try:
+            result = (
+                supabase.table("reports")
+                .update(update)
+                .eq("id", report_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+        except Exception as exc:
+            _cleanup(bucket, uploaded_paths)
+            _raise_for_supabase_error(
+                exc, fallback_detail="Failed to update the report. Please try again."
+            )
+        if not result.data:
+            _cleanup(bucket, uploaded_paths)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to update the report. Please try again.",
+            )
+        saved_row = result.data[0]
+
+    _cleanup(bucket, remove_image_paths)
+    url_by_path = _sign_image_paths(supabase, settings, saved_row.get("image_paths") or [])
+    return _row_to_response(saved_row, url_by_path)
+
+
+async def delete_report(
+    *, supabase: Client, settings: Settings, user_id: str, report_id: str
+) -> None:
+    """Owner-only delete. The row goes first (saved_reports cascade), then
+    its Storage images are removed best-effort."""
+    row = _get_owned_report_row(supabase, report_id=report_id, user_id=user_id)
+    try:
+        supabase.table("reports").delete().eq("id", report_id).eq("user_id", user_id).execute()
+    except Exception as exc:
+        _raise_for_supabase_error(
+            exc, fallback_detail="Failed to delete the report. Please try again."
+        )
+    bucket = supabase.storage.from_(settings.SUPABASE_STORAGE_BUCKET)
+    _cleanup(bucket, row.get("image_paths") or [])
+
+
 def _cleanup(bucket, paths: list[str]) -> None:
     """Best-effort removal of already-uploaded images after a failure
     partway through, so a partial failure doesn't leave orphaned Storage

@@ -49,6 +49,7 @@ from app.schemas.report import (
 )
 from app.services.reports_service import (
     create_report,
+    delete_report,
     get_report,
     get_report_stats,
     list_report_markers,
@@ -56,6 +57,7 @@ from app.services.reports_service import (
     list_saved_reports,
     save_report,
     unsave_report,
+    update_report,
 )
 
 router = APIRouter()
@@ -300,4 +302,83 @@ async def get_report_detail(
         settings=settings,
         report_id=report_id,
         current_user_id=current_user.id if current_user else None,
+    )
+
+
+@router.patch(
+    "/{report_id}",
+    response_model=ReportResponse,
+    summary="Edit one of the caller's own reports",
+)
+async def update_report_endpoint(
+    report_id: str,
+    category: ReportCategory | None = Form(None),
+    description: str | None = Form(None, min_length=10, max_length=2000),
+    city: str | None = Form(None, min_length=1, max_length=100),
+    pin_code: str | None = Form(None, pattern=r"^[0-9]{6}$"),
+    latitude: float | None = Form(None, ge=-90, le=90),
+    longitude: float | None = Form(None, ge=-180, le=180),
+    remove_image_paths: list[str] | None = Form(None),
+    images: list[UploadFile] | None = File(None),
+    current_user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    supabase=Depends(get_supabase_service_client),
+) -> ReportResponse:
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="latitude and longitude must be provided together.",
+        )
+    fields: dict = {}
+    if category is not None:
+        fields["category"] = category.value
+    if description is not None:
+        description = description.strip()
+        if len(description) < 10:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="description must be at least 10 characters (excluding surrounding spaces).",
+            )
+        fields["description"] = description
+    if city is not None:
+        city = city.strip()
+        if not city:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="city must not be blank.",
+            )
+        fields["city"] = city
+    if pin_code is not None:
+        fields["pin_code"] = pin_code
+    if latitude is not None:
+        fields["latitude"] = latitude
+        fields["longitude"] = longitude
+
+    return await update_report(
+        supabase=supabase,
+        settings=settings,
+        user_id=current_user.id,
+        report_id=report_id,
+        fields=fields,
+        remove_image_paths=remove_image_paths or [],
+        images=images or [],
+    )
+
+
+@router.delete(
+    "/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete one of the caller's own reports",
+)
+async def delete_report_endpoint(
+    report_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    supabase=Depends(get_supabase_service_client),
+) -> None:
+    await delete_report(
+        supabase=supabase,
+        settings=settings,
+        user_id=current_user.id,
+        report_id=report_id,
     )

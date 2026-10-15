@@ -154,9 +154,27 @@ class _FakeQueryBuilder:
         self._limit = size
         return self
 
+    def update(self, values: dict):
+        self._mutation = ("update", values)
+        return self
+
+    def delete(self):
+        self._mutation = ("delete", None)
+        return self
+
     def execute(self) -> SimpleNamespace:
         if self._fail_with_code is not None:
             raise _FakeAPIError(self._fail_with_code)
+        mutation = getattr(self, "_mutation", None)
+        if mutation is not None:
+            matched = [row for row in self._rows if all(f(row) for f in self._filters)]
+            if mutation[0] == "update":
+                for row in matched:
+                    row.update(mutation[1])
+            else:
+                for row in matched:
+                    self._rows.remove(row)
+            return SimpleNamespace(data=matched)
         rows = [row for row in self._rows if all(f(row) for f in self._filters)]
         if self._order_key is not None:
             rows.sort(key=lambda row: row[self._order_key], reverse=self._order_desc)
@@ -198,6 +216,12 @@ class _FakeTable:
         return _FakeQueryBuilder(self.rows, fail_with_code=self.fail_query_code).select(
             *columns, count=count, head=head
         )
+
+    def update(self, values: dict):
+        return _FakeQueryBuilder(self.rows).update(values)
+
+    def delete(self):
+        return _FakeQueryBuilder(self.rows).delete()
 
     def execute(self) -> SimpleNamespace:
         if self.fail_insert_code is not None:
@@ -1115,3 +1139,86 @@ def test_get_report_markers_requires_no_authentication(make_fake_supabase):
     response = client.get("/api/v1/reports/markers")
 
     assert response.status_code == 200
+
+
+# ---- Owner-only edit / delete ----
+
+
+def _seed_owned(fake_supabase, *, user_id="user-123", image_paths=None) -> dict:
+    row = _make_report_row(user_id=user_id, image_paths=image_paths or [])
+    fake_supabase._table.rows.append(row)
+    return row
+
+
+def test_owner_can_edit_report_and_status_is_preserved(fake_supabase):
+    row = _seed_owned(fake_supabase)
+    row["status"] = "in_review"
+
+    response = client.patch(
+        f"/api/v1/reports/{row['id']}",
+        data={"description": "Updated pothole description", "city": "Pune", "pin_code": "411001"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["description"] == "Updated pothole description"
+    assert body["city"] == "Pune"
+    assert body["status"] == "in_review"
+
+
+def test_edit_other_users_report_is_forbidden(fake_supabase):
+    row = _seed_owned(fake_supabase, user_id="someone-else")
+
+    response = client.patch(
+        f"/api/v1/reports/{row['id']}",
+        data={"city": "Hijacked"},
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 403
+    assert row["city"] != "Hijacked"
+
+
+def test_edit_requires_auth(fake_supabase):
+    row = _seed_owned(fake_supabase)
+    assert client.patch(f"/api/v1/reports/{row['id']}", data={"city": "X"}).status_code == 401
+
+
+def test_edit_swaps_images_and_removes_old_from_storage(fake_supabase):
+    row = _seed_owned(fake_supabase, image_paths=["user-123/old.jpg"])
+
+    response = client.patch(
+        f"/api/v1/reports/{row['id']}",
+        data={"remove_image_paths": "user-123/old.jpg"},
+        files=[("images", ("new.png", io.BytesIO(b"png-bytes"), "image/png"))],
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200
+    assert len(row["image_paths"]) == 1 and row["image_paths"][0] != "user-123/old.jpg"
+    assert fake_supabase.storage_bucket.removed == ["user-123/old.jpg"]
+
+
+def test_owner_can_delete_report_and_images_are_removed(fake_supabase):
+    row = _seed_owned(fake_supabase, image_paths=["user-123/a.jpg"])
+
+    response = client.delete(f"/api/v1/reports/{row['id']}", headers=_auth_headers())
+
+    assert response.status_code == 204
+    assert fake_supabase._table.rows == []
+    assert fake_supabase.storage_bucket.removed == ["user-123/a.jpg"]
+
+
+def test_delete_other_users_report_is_forbidden(fake_supabase):
+    row = _seed_owned(fake_supabase, user_id="someone-else")
+
+    response = client.delete(f"/api/v1/reports/{row['id']}", headers=_auth_headers())
+
+    assert response.status_code == 403
+    assert len(fake_supabase._table.rows) == 1
+
+
+def test_delete_missing_report_is_404(fake_supabase):
+    response = client.delete(f"/api/v1/reports/{uuid.uuid4()}", headers=_auth_headers())
+    assert response.status_code == 404
