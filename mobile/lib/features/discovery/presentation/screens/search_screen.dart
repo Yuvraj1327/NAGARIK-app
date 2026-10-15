@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart' as latlong;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/constants/report_status.dart';
 import 'package:nagarik/core/routing/app_drawer.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/features/discovery/presentation/widgets/discovery_section_header.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/domain/report_marker.dart';
 import 'package:nagarik/features/reports/domain/reports_page.dart';
@@ -16,11 +17,12 @@ import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_map.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_marker_preview_sheet.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
-import 'package:nagarik/shared/widgets/app_button.dart';
-import 'package:nagarik/shared/widgets/app_text_field.dart';
+import 'package:nagarik/shared/widgets/app_search_field.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
+import 'package:nagarik/shared/widgets/pill_button.dart';
+import 'package:nagarik/shared/widgets/selectable_chip.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
 import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/skeleton.dart';
@@ -29,7 +31,7 @@ import 'package:nagarik/shared/widgets/skeleton.dart';
 /// starting point when a search has results but no device location to
 /// center on (e.g. a category filter with no "Near me"), so the map opens
 /// somewhere reasonable rather than the middle of the ocean at (0, 0).
-const _fallbackMapCenter = latlong.LatLng(20.5937, 78.9629);
+const _fallbackMapCenter = LatLng(20.5937, 78.9629);
 
 enum _ResultsView { list, map }
 
@@ -172,208 +174,215 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  /// Filters are always visible in List view; in Map view they collapse
+  /// behind a "Filters" toggle so the map keeps most of the screen.
+  bool _filtersExpanded = false;
 
-    return Scaffold(
-      appBar: const PrimaryAppBar(title: 'Search'),
-      drawer: const AppDrawer(),
-      body: ResponsiveCenter(
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-            children: [
-              // The filter panel scrolls within a cap (rather than growing
-              // unbounded) so it can never overflow on a short screen or
-              // with the keyboard open, and always leaves room for results.
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: constraints.maxHeight * 0.62),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurface : AppColors.surface,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: isDark ? AppColors.darkBorder : AppColors.border,
-                      ),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x0D12213A),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.sm + 4,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                    ),
-                    child: _buildFilters(),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _SearchResults(
-                  view: _view,
-                  hasSearched: _hasSearched,
-                  resultsFuture: _resultsFuture,
-                  markersFuture: _markersFuture,
-                  nearbyCenter: _nearby && _latitude != null && _longitude != null
-                      ? latlong.LatLng(_latitude!, _longitude!)
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _selectCategory(ReportCategory? category) {
+    setState(() => _category = category);
+    _runSearch();
   }
 
-  /// Filters, top to bottom: keyword search → category → status → location
-  /// (Near Me, City, PIN code) → Search action (→ List/Map toggle once
-  /// there are results). Every chip filter re-runs the search on tap, as
-  /// before; the Search button covers the typed City/PIN/keyword fields.
-  Widget _buildFilters() {
+  void _selectStatus(ReportStatus? status) {
+    setState(() => _status = status);
+    _runSearch();
+  }
+
+  void _clearKeyword() {
+    _searchController.clear();
+    if (_hasSearched) _runSearch();
+  }
+
+  Widget _buildFilters(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
+        AppSearchField(
           controller: _searchController,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            hintText: 'Search by keyword, e.g. "pothole"',
-            prefixIcon: Icon(Icons.search),
-            contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
-            isDense: true,
-          ),
+          hintText: 'Search by keyword, e.g. "pothole"',
           onSubmitted: (_) => _runSearch(),
+          onClear: _clearKeyword,
         ),
-        const _FilterSection(label: 'Category'),
-        // Single scrolling row: eight chips would otherwise wrap onto three
-        // lines and push the results far down the screen.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          clipBehavior: Clip.none,
-          child: Row(
-            children: [
-              _FilterChip(
-                label: 'All',
-                selected: _category == null,
-                onSelected: () {
-                  setState(() => _category = null);
-                  _runSearch();
-                },
-              ),
-              for (final category in ReportCategory.values) ...[
-                const SizedBox(width: _chipGap),
-                _FilterChip(
-                  label: category.label,
-                  icon: category.icon,
-                  selected: _category == category,
-                  onSelected: () {
-                    setState(() => _category = category);
-                    _runSearch();
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-        const _FilterSection(label: 'Status'),
-        Wrap(
-          spacing: _chipGap,
-          runSpacing: _chipGap,
+        const SizedBox(height: AppSpacing.md),
+        const DiscoverySectionHeader(title: 'Category'),
+        _ChipRow(
           children: [
-            _FilterChip(
-              label: 'Any status',
-              selected: _status == null,
-              onSelected: () {
-                setState(() => _status = null);
-                _runSearch();
-              },
+            SelectableChip(
+              label: 'All',
+              icon: Icons.grid_view_rounded,
+              selected: _category == null,
+              onTap: () => _selectCategory(null),
             ),
-            for (final status in ReportStatus.values)
-              _FilterChip(
-                label: status.label,
-                selected: _status == status,
-                onSelected: () {
-                  setState(() => _status = status);
-                  _runSearch();
-                },
+            for (final category in ReportCategory.values)
+              SelectableChip(
+                label: category.label,
+                icon: category.icon,
+                selected: _category == category,
+                onTap: () => _selectCategory(category),
               ),
           ],
         ),
-        const _FilterSection(label: 'Location'),
-        _FilterChip(
-          label: 'Near Me',
-          icon: Icons.my_location_outlined,
-          loading: _isFetchingLocation,
-          selected: _nearby,
-          onSelected: () => _toggleNearby(!_nearby),
-        ),
         const SizedBox(height: AppSpacing.sm),
+        const DiscoverySectionHeader(title: 'Status'),
+        _ChipRow(
+          children: [
+            SelectableChip(
+              label: 'Any status',
+              selected: _status == null,
+              onTap: () => _selectStatus(null),
+            ),
+            for (final status in ReportStatus.values)
+              SelectableChip(
+                label: status.label,
+                selected: _status == status,
+                onTap: () => _selectStatus(status),
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm + 4),
+        Text('Location', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: AppSpacing.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SelectableChip(
+            label: 'Near Me',
+            icon: Icons.my_location_outlined,
+            selected: _nearby,
+            isLoading: _isFetchingLocation,
+            onTap: _isFetchingLocation ? null : () => _toggleNearby(!_nearby),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm + 4),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 3,
-              child: AppTextField(
-                label: 'City',
+              child: _LocationField(
                 controller: _cityController,
-                prefixIcon: Icons.location_city_outlined,
+                hintText: 'City',
+                icon: Icons.location_city_outlined,
                 maxLength: 100,
-                dense: true,
-                showCounter: false,
-                textInputAction: TextInputAction.next,
+                onSubmitted: _runSearch,
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: AppSpacing.sm + 4),
             Expanded(
-              flex: 2,
-              child: AppTextField(
-                label: 'PIN code',
+              child: _LocationField(
                 controller: _pinController,
-                prefixIcon: Icons.pin_drop_outlined,
-                keyboardType: TextInputType.number,
+                hintText: 'PIN code',
+                icon: Icons.pin_drop_outlined,
                 maxLength: 6,
-                dense: true,
-                showCounter: false,
-                textInputAction: TextInputAction.search,
+                keyboardType: TextInputType.number,
+                onSubmitted: _runSearch,
               ),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        AppButton(label: 'Search', icon: Icons.search, onPressed: _runSearch),
-        if (_hasSearched) ...[
-          const SizedBox(height: AppSpacing.sm + 4),
-          Align(
-            alignment: Alignment.centerRight,
-            child: SegmentedButton<_ResultsView>(
-              showSelectedIcon: false,
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              segments: const [
-                ButtonSegment(
-                  value: _ResultsView.list,
-                  label: Text('List'),
-                  icon: Icon(Icons.view_list_outlined),
-                ),
-                ButtonSegment(
-                  value: _ResultsView.map,
-                  label: Text('Map'),
-                  icon: Icon(Icons.map_outlined),
+        PillButton(label: 'Search', onPressed: _runSearch),
+      ],
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return SegmentedButton<_ResultsView>(
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(
+          value: _ResultsView.list,
+          label: Text('List'),
+          icon: Icon(Icons.view_list_outlined),
+        ),
+        ButtonSegment(
+          value: _ResultsView.map,
+          label: Text('Map'),
+          icon: Icon(Icons.map_outlined),
+        ),
+      ],
+      selected: {_view},
+      onSelectionChanged: (selection) => _setView(selection.first),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nearbyCenter = _nearby && _latitude != null && _longitude != null
+        ? LatLng(_latitude!, _longitude!)
+        : null;
+    const pagePadding = EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0);
+
+    Widget body;
+    if (_view == _ResultsView.map) {
+      final showFilters = _filtersExpanded || !_hasSearched;
+      body = Column(
+        children: [
+          Padding(
+            padding: pagePadding,
+            child: Row(
+              children: [
+                Expanded(child: _buildViewToggle()),
+                const SizedBox(width: AppSpacing.sm),
+                SelectableChip(
+                  label: 'Filters',
+                  icon: Icons.tune_rounded,
+                  selected: showFilters,
+                  onTap: _hasSearched
+                      ? () => setState(() => _filtersExpanded = !_filtersExpanded)
+                      : null,
                 ),
               ],
-              selected: {_view},
-              onSelectionChanged: (selection) => _setView(selection.first),
+            ),
+          ),
+          if (showFilters)
+            Flexible(
+              flex: 3,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: _buildFilters(context),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          Expanded(
+            flex: 4,
+            child: _SearchResults(
+              view: _view,
+              hasSearched: _hasSearched,
+              resultsFuture: _resultsFuture,
+              markersFuture: _markersFuture,
+              nearbyCenter: nearbyCenter,
             ),
           ),
         ],
-      ],
+      );
+    } else {
+      body = ListView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.sm,
+          AppSpacing.md,
+          AppSpacing.lg,
+        ),
+        children: [
+          _buildFilters(context),
+          if (_hasSearched) ...[
+            const SizedBox(height: AppSpacing.md),
+            _buildViewToggle(),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          _SearchResults(
+            view: _view,
+            hasSearched: _hasSearched,
+            resultsFuture: _resultsFuture,
+            markersFuture: _markersFuture,
+            nearbyCenter: nearbyCenter,
+          ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      appBar: const PrimaryAppBar(title: 'Search'),
+      drawer: const AppDrawer(activeRoute: '/search'),
+      body: ResponsiveCenter(child: body),
     );
   }
 
@@ -386,83 +395,71 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
-const double _chipGap = AppSpacing.sm;
+/// A horizontally scrolling row of filter chips.
+class _ChipRow extends StatelessWidget {
+  const _ChipRow({required this.children});
 
-/// A bold section label with consistent spacing above and below, used to
-/// separate the filter groups (Category / Status / Location).
-class _FilterSection extends StatelessWidget {
-  const _FilterSection({required this.label});
-
-  final String label;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          for (final child in children) ...[child, const SizedBox(width: AppSpacing.sm)],
+        ],
       ),
     );
   }
 }
 
-/// The one chip style every Search filter uses, so Category, Status, and
-/// Near Me all share the same height, shape, and selected look: a filled
-/// brand-blue pill when selected, a white bordered pill otherwise.
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-    this.icon,
-    this.loading = false,
+/// A rounded text field with a leading icon, used for the City / PIN code
+/// filters. No character counter — the limit is still enforced.
+class _LocationField extends StatelessWidget {
+  const _LocationField({
+    required this.controller,
+    required this.hintText,
+    required this.icon,
+    required this.maxLength,
+    required this.onSubmitted,
+    this.keyboardType,
   });
 
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-  final IconData? icon;
-
-  /// Swaps the icon for a small spinner and disables the chip (Near Me
-  /// while the device location is being fetched).
-  final bool loading;
+  final TextEditingController controller;
+  final String hintText;
+  final IconData icon;
+  final int maxLength;
+  final TextInputType? keyboardType;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final foreground = selected
-        ? AppColors.onPrimary
-        : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
+    final border = isDark ? AppColors.darkBorder : AppColors.border;
+    OutlineInputBorder outline(Color color, [double width = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderSide: BorderSide(color: color, width: width),
+        );
 
-    return ChoiceChip(
-      showCheckmark: false,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      shape: const StadiumBorder(),
-      side: BorderSide(
-        color: selected
-            ? AppColors.primary
-            : (isDark ? AppColors.darkBorder : AppColors.border),
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      textInputAction: TextInputAction.search,
+      onSubmitted: (_) => onSubmitted(),
+      decoration: InputDecoration(
+        hintText: hintText,
+        counterText: '',
+        filled: true,
+        fillColor: isDark ? AppColors.darkSurface : AppColors.surface,
+        prefixIcon: Icon(icon, color: AppColors.textSecondary),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: AppSpacing.md),
+        border: outline(border),
+        enabledBorder: outline(border),
+        focusedBorder: outline(AppColors.primary, 1.5),
       ),
-      backgroundColor: isDark ? AppColors.darkSurface : AppColors.surface,
-      selectedColor: AppColors.primary,
-      avatar: loading
-          ? SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
-            )
-          : (icon != null ? Icon(icon, size: 16, color: foreground) : null),
-      label: Text(
-        label,
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: foreground),
-      ),
-      selected: selected,
-      onSelected: loading ? null : (_) => onSelected(),
     );
   }
 }
@@ -484,23 +481,17 @@ class _SearchResults extends StatelessWidget {
   /// The device's location when "Near me" is active, so the map can center
   /// on it; null otherwise (the map then centers on the results themselves,
   /// or on [_fallbackMapCenter] if there are none to center on).
-  final latlong.LatLng? nearbyCenter;
+  final LatLng? nearbyCenter;
 
   @override
   Widget build(BuildContext context) {
     if (!hasSearched) {
-      // Scrollable so the placeholder can't overflow when the filter panel
-      // leaves only a short strip for it on a small screen.
-      return LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: const EmptyView(
-              icon: Icons.travel_explore_outlined,
-              title: 'Search for civic reports',
-              message: 'Find reports by keyword, category, status, city, PIN code, or near you.',
-            ),
-          ),
+      return const SizedBox(
+        height: 260,
+        child: EmptyView(
+          icon: Icons.travel_explore_outlined,
+          title: 'Search for civic reports',
+          message: 'Find reports by keyword, category, status, city, PIN code, or near you.',
         ),
       );
     }
@@ -511,6 +502,9 @@ class _SearchResults extends StatelessWidget {
   }
 }
 
+/// List results are laid out inline (no nested scroll view) because they
+/// live inside the Search screen's single scrolling column, beneath the
+/// filters.
 class _ListResults extends StatelessWidget {
   const _ListResults({required this.resultsFuture});
 
@@ -522,42 +516,52 @@ class _ListResults extends StatelessWidget {
       future: resultsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SkeletonReportList(count: 4);
+          return const SkeletonReportList(count: 3, padding: EdgeInsets.zero);
         }
         if (snapshot.hasError) {
-          return ErrorView.forError(
-            snapshot.error!,
-            fallbackMessage: 'Could not search reports. Please try again.',
+          return SizedBox(
+            height: 260,
+            child: ErrorView.forError(
+              snapshot.error!,
+              fallbackMessage: 'Could not search reports. Please try again.',
+            ),
           );
         }
 
         final page = snapshot.data!;
         if (page.items.isEmpty) {
-          return const EmptyView.searchNoResults();
+          return const SizedBox(height: 260, child: EmptyView.searchNoResults());
         }
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: page.items.length,
-          separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) {
-            final report = page.items[index];
-            return FadeSlideIn(
-              delay: Duration(milliseconds: 30 * index),
-              child: ReportCard(
-                title: report.category.label,
-                description: report.description,
-                category: report.category,
-                status: report.status,
-                city: report.city,
-                pinCode: report.pinCode,
-                referenceId: report.referenceId,
-                imageUrl: report.imageUrls.isNotEmpty ? report.imageUrls.first : null,
-                date: report.createdAt,
-                onTap: () => context.push('/report/${report.id}'),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              page.total == 1 ? '1 report found' : '${page.total} reports found',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppSpacing.sm + 4),
+            for (var index = 0; index < page.items.length; index++) ...[
+              FadeSlideIn(
+                delay: Duration(milliseconds: 30 * index),
+                child: ReportCard(
+                  title: page.items[index].category.label,
+                  description: page.items[index].description,
+                  category: page.items[index].category,
+                  status: page.items[index].status,
+                  city: page.items[index].city,
+                  pinCode: page.items[index].pinCode,
+                  referenceId: page.items[index].referenceId,
+                  imageUrl: page.items[index].imageUrls.isNotEmpty
+                      ? page.items[index].imageUrls.first
+                      : null,
+                  date: page.items[index].createdAt,
+                  onTap: () => context.push('/report/${page.items[index].id}'),
+                ),
               ),
-            );
-          },
+              if (index != page.items.length - 1) const SizedBox(height: AppSpacing.sm + 4),
+            ],
+          ],
         );
       },
     );
@@ -568,14 +572,14 @@ class _MapResults extends StatelessWidget {
   const _MapResults({required this.markersFuture, required this.nearbyCenter});
 
   final Future<List<ReportMarker>>? markersFuture;
-  final latlong.LatLng? nearbyCenter;
+  final LatLng? nearbyCenter;
 
-  latlong.LatLng _centerFor(List<ReportMarker> markers) {
+  LatLng _centerFor(List<ReportMarker> markers) {
     if (nearbyCenter != null) return nearbyCenter!;
     if (markers.isEmpty) return _fallbackMapCenter;
     final avgLat = markers.map((m) => m.latitude).reduce((a, b) => a + b) / markers.length;
     final avgLng = markers.map((m) => m.longitude).reduce((a, b) => a + b) / markers.length;
-    return latlong.LatLng(avgLat, avgLng);
+    return LatLng(avgLat, avgLng);
   }
 
   @override

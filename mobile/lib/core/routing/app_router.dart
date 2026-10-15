@@ -129,7 +129,12 @@ final appRouterProvider = Provider.family<GoRouter, String>((ref, initialLocatio
         path: '/report/create',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
-            fadeSlidePage(key: state.pageKey, child: const CreateReportScreen()),
+            fadeSlidePage(
+              key: state.pageKey,
+              child: CreateReportScreen(
+                initialCategoryName: state.uri.queryParameters['category'],
+              ),
+            ),
       ),
       GoRoute(
         path: '/report/:id',

@@ -20,12 +20,12 @@ class DiscoverySectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
         if (onSeeAll != null)
           TextButton(
             onPressed: onSeeAll,
-            child: const Text('See all'),
+            child: const Text('See all', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
       ],
     );

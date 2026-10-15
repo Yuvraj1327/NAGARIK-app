@@ -42,7 +42,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'Profile'),
-      drawer: const AppDrawer(),
+      drawer: const AppDrawer(activeRoute: '/profile'),
       body: user == null ? const _SignedOutView() : const _SignedInView(),
     );
   }

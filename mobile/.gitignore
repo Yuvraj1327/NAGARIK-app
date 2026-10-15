@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Google Maps platform keys (generated from .env by tool/sync_maps_keys.sh)
+/ios/Flutter/MapsKeys.xcconfig
+.env

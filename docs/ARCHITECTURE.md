@@ -1791,3 +1791,65 @@ Step 5/Step 6 opt-out connection could not be exercised end-to-end here
 (no emulator/device, no real backend session to sign in with) — test all
 three for real on a device, including actually denying a permission and
 confirming the app still proceeds.
+
+## 25. UI recreation from reference screens: onboarding and Report Issue
+
+Both flows were visually reworked to match a set of reference screenshots
+(segmented progress bar + back arrow, large bold headings, rounded cards,
+full-width pill buttons; a numbered Type/Photo/Place/Details/Review
+stepper), in NAGARIK's own palette and logo. Behavior, routes, auth and the
+backend contract are unchanged.
+
+**Shared:** `shared/widgets/pill_button.dart` (56px stadium button, three
+variants) and `features/reports/presentation/widgets/report_stepper.dart`
+(numbered stepper with check marks).
+
+**Onboarding** (`onboarding_screen.dart`): header Skip on every step (skips
+only that step; Welcome's Skip leaves the flow), Language with centered
+logo + radio rows, About with icon rows and a "not an emergency service"
+notice, optional +91 mobile number (10 digits, saved as before — no OTP),
+Age as two answer buttons that record and advance, Data & Privacy with a
+"needed to sign in" box and two real consent switches, Permissions
+(Location, Camera & photos) via `permission_handler`, and a Preferences
+step (appearance segmented control + language). **Deliberately not
+recreated** because NAGARIK has no such feature: phone-OTP login, SOS /
+"I'm Safe", nearby-alert radius and alert kinds, notifications, analytics
+and marketing consents.
+
+**Report Issue** (`create_report_screen.dart`): photo tiles with overlaid
+labels and a "Call 112" notice (`url_launcher`, `tel:` link only); a camera
+panel whose shutter/gallery buttons use the real device camera/gallery via
+`image_picker` (no live in-app viewfinder — that would need the `camera`
+package); a Place step with landmark search (`GeocodingService.
+coordinatesFromQuery`), Google Map with a fixed pin, "Others will see"
+card and the required City/PIN fields; Details with a live counter (cap
+500, backend allows 2000) plus the reference's two quick questions — the
+backend has no fields for them, so answers are appended to the description
+(`ReportDraft.submissionDescription`) rather than inventing a schema change;
+a sectioned Review with per-section Edit; and the existing success screen
+with the real Report ID. Reference claims NAGARIK can't back up (photo
+metadata stripping, name/number never shown, duplicate merging) were
+reworded rather than copied.
+
+Verified with the static checker only (no Flutter SDK here).
+
+## 26. Home / Drawer / Search & Discover / My Reports redesign
+
+UI-only step. No backend, API, route-table, auth or dependency changes; every screen still reads the same providers (`homeLocationProvider`, `nearbyReportsProvider`, `homeFeedProvider`, `myReportsProvider`, `reportsRepositoryProvider`).
+
+**Home** (`home_feed_screen.dart`): hamburger + logo + wordmark header with the user's real avatar (`ProfileAvatarButton` → Profile tab); "Hello, <first name> 👋"; read-only `AppSearchField` that opens Search; `LocationAccessCard`; "Report an Issue" 3-column category photo cards; then the unchanged Nearby Issues and Recent Reports sections.
+- `LocationAccessCard` is driven by `homeLocationProvider`. On failure it shows the real message and an **Enable** button that re-requests permission; when the OS will no longer prompt (`LocationException.needsAppSettings` / `needsLocationServices`, new flags set in `LocationService`) the button becomes **Settings** and opens the matching OS page via new `LocationService.openAppSettings/openLocationSettings` wrappers (geolocator stays used only inside `LocationService`).
+- Category cards now start the Report Issue flow with that category preselected: `/report/create?category=<name>` → `CreateReportScreen(initialCategoryName)`. Browsing by category lives in Search's category chips.
+- Deliberately omitted from the reference: the bell icon (no notifications feature; push notifications are out of scope) and microphone icons (no voice search). They are not stubbed.
+
+**Drawer** (`app_drawer.dart`): gradient header with logo and a tappable profile row (→ Profile); MAIN / SUPPORT / LEGAL groups; outlined icons with trailing chevrons; selected row shown as a light-blue pill (`activeRoute` is passed in by each tab, so the drawer needs no router and stays testable); Logout pinned at the bottom after a divider. Settings is kept (under SUPPORT). Labels now read "Search & Discover" and "Map & Nearby" (test updated).
+
+**Search & Discover** (`search_screen.dart`): one scrolling page — keyword field, horizontally scrolling Category and Status chips, Location (Near Me chip, City and PIN fields), full-width Search button, List/Map toggle, results. Query parameters (`category`, `nearby`, `all`, `view`) and the fetch logic are unchanged. In Map view the filters collapse behind a "Filters" chip so the map keeps the screen (and doesn't fight a parent scroll view for gestures).
+
+**My Reports**: chips with real per-status counts (selected chip gets a check), the new card, "Report an Issue" action on the empty state, filter-specific empty message.
+
+**Shared pieces**: `AppSearchField`, `SelectableChip`, redesigned `ReportCard` (photo or category-icon tile, status pill, chevron, reference-id and date footer — same constructor, so every caller picks it up), softer `StatusBadge`, 3-column `CategoryGrid`.
+
+**Bottom navigation** (`scaffold_with_nav_bar.dart`): rounded shadowed bar, pill-highlighted active item, raised center "+" that pushes `/report/create` (replaces the extended FAB; still four real destinations: Home, Search, My Reports, Profile).
+
+Tests: `test/home_redesign_test.dart` (new), `test/app_drawer_test.dart` (labels + group headings).

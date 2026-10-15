@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import 'package:nagarik/core/maps/maps_availability.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
+import 'package:nagarik/features/reports/presentation/widgets/map_unavailable_view.dart';
 
 /// Report Issue redesign: the "Place" step's map — a real `GoogleMap` (per
 /// explicit request; see `pubspec.yaml`'s comment on why this is a
@@ -33,13 +35,25 @@ import 'package:nagarik/features/reports/data/location_service.dart';
 /// neutral default, not anything the person chose) into the draft. The
 /// first idle event is swallowed by [_hasHadFirstIdle] below; every idle
 /// after that one really does follow a pan or a "locate me" tap.
+/// Lets the screen that owns a [LocationPickerMap] move its camera from
+/// outside (the Place step's "Search an area or landmark" field) without
+/// reaching into the map's private state.
+class LocationPickerController {
+  Future<void> Function(LatLng target)? _moveTo;
+
+  Future<void> moveTo(LatLng target) async => _moveTo?.call(target);
+}
+
 class LocationPickerMap extends StatefulWidget {
   const LocationPickerMap({
     super.key,
     required this.initialPosition,
     required this.onPositionChanged,
     required this.locationService,
+    this.controller,
   });
+
+  final LocationPickerController? controller;
 
   final LatLng initialPosition;
   final ValueChanged<LatLng> onPositionChanged;
@@ -58,6 +72,21 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
   /// user pan) — see this class's doc comment above. Flips to `true` the
   /// first time `onCameraIdle` fires and is never reset.
   bool _hasHadFirstIdle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?._moveTo = (target) async {
+      final controller = await _controller.future;
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+    };
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._moveTo = null;
+    super.dispose();
+  }
 
   void _onCameraIdle() {
     if (!_hasHadFirstIdle) {
@@ -79,7 +108,21 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
       // to call it a second time here.
     } on LocationException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message),
+          // Permanently denied / services off can only be fixed in OS
+          // settings — offer a direct way there instead of a dead end.
+          action: error.needsAppSettings
+              ? SnackBarAction(label: 'Settings', onPressed: widget.locationService.openAppSettings)
+              : error.needsLocationServices
+                  ? SnackBarAction(
+                      label: 'Settings',
+                      onPressed: widget.locationService.openLocationSettings,
+                    )
+                  : null,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLocating = false);
     }
@@ -87,10 +130,16 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
 
   @override
   Widget build(BuildContext context) {
+    if (!MapsAvailability.isAvailable) {
+      return const ClipRRect(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+        child: SizedBox(height: 300, child: MapUnavailableView()),
+      );
+    }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       child: SizedBox(
-        height: 260,
+        height: 300,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -115,6 +164,22 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
                   size: 40,
                   color: AppColors.primary,
                   shadows: [Shadow(blurRadius: 6, color: Color(0x5512213A))],
+                ),
+              ),
+            ),
+            Positioned(
+              left: 12,
+              top: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: const [BoxShadow(blurRadius: 6, color: Color(0x2212213A))],
+                ),
+                child: const Text(
+                  'Drag the map to adjust',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                 ),
               ),
             ),

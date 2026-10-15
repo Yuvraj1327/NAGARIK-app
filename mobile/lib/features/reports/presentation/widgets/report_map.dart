@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart' as latlong;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:nagarik/core/constants/report_status.dart';
-import 'package:nagarik/core/theme/app_colors.dart';
+import 'package:nagarik/core/maps/maps_availability.dart';
 import 'package:nagarik/features/reports/domain/report_marker.dart';
+import 'package:nagarik/features/reports/presentation/widgets/map_unavailable_view.dart';
 
-/// Renders [markers] as pins on an OpenStreetMap-tiled map — the "Map" half
-/// of Search's List/Map toggle (Location Discovery & Home upgrade).
-///
-/// Uses `flutter_map` (OpenStreetMap tiles) rather than `google_maps_flutter`
-/// deliberately: no API key or native platform configuration is needed to
-/// show real report coordinates on a map, which is all this step actually
-/// asks for — see `pubspec.yaml`'s comment on the dependency. Each pin is
-/// colored by the report's status using the exact same colors as
-/// `StatusBadge`, so a marker's color means the same thing everywhere in
-/// the app.
+/// Renders [markers] as pins on a Google Map — the "Map" half of Search's
+/// List/Map toggle. Pins are tinted by report status (blue = submitted,
+/// orange = in review, green = resolved), matching `StatusBadge`'s meaning.
+/// Only ever draws the markers it is given (real backend results).
 class ReportMap extends StatelessWidget {
   const ReportMap({
     super.key,
@@ -25,43 +19,33 @@ class ReportMap extends StatelessWidget {
   });
 
   final List<ReportMarker> markers;
-  final latlong.LatLng center;
+  final LatLng center;
   final ValueChanged<ReportMarker>? onMarkerTap;
 
-  static Color _colorForStatus(ReportStatus status) => switch (status) {
-        ReportStatus.submitted => AppColors.statusSubmitted,
-        ReportStatus.inReview => AppColors.statusInReview,
-        ReportStatus.resolved => AppColors.statusResolved,
+  static double _hueForStatus(ReportStatus status) => switch (status) {
+        ReportStatus.submitted => BitmapDescriptor.hueAzure,
+        ReportStatus.inReview => BitmapDescriptor.hueOrange,
+        ReportStatus.resolved => BitmapDescriptor.hueGreen,
       };
 
   @override
   Widget build(BuildContext context) {
-    return FlutterMap(
-      options: MapOptions(initialCenter: center, initialZoom: 13),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.nagarik.app',
-        ),
-        MarkerLayer(
-          markers: [
-            for (final marker in markers)
-              Marker(
-                point: latlong.LatLng(marker.latitude, marker.longitude),
-                width: 36,
-                height: 36,
-                child: GestureDetector(
-                  onTap: onMarkerTap == null ? null : () => onMarkerTap!(marker),
-                  child: Icon(
-                    Icons.location_on,
-                    color: _colorForStatus(marker.status),
-                    size: 36,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ],
+    if (!MapsAvailability.isAvailable) return const MapUnavailableView();
+
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(target: center, zoom: 13),
+      myLocationButtonEnabled: false,
+      mapToolbarEnabled: false,
+      zoomControlsEnabled: false,
+      markers: {
+        for (final marker in markers)
+          Marker(
+            markerId: MarkerId(marker.id),
+            position: LatLng(marker.latitude, marker.longitude),
+            icon: BitmapDescriptor.defaultMarkerWithHue(_hueForStatus(marker.status)),
+            onTap: onMarkerTap == null ? null : () => onMarkerTap!(marker),
+          ),
+      },
     );
   }
 }

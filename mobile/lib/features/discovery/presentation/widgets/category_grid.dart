@@ -6,7 +6,7 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 
-/// Home's "Explore by Category" shortcuts — one tile per
+/// Home's "Report an Issue" category shortcuts (3-column photo cards) — one tile per
 /// [ReportCategory.values] (Roads, Streetlights, Sanitation, Water,
 /// Electricity, Safety, Other), reusing that enum's existing `label`/`icon`
 /// rather than a second, parallel list. Purely a navigation shortcut: no
@@ -20,12 +20,12 @@ class CategoryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 4,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppSpacing.sm,
-      crossAxisSpacing: AppSpacing.sm,
-      childAspectRatio: 1.0,
+      mainAxisSpacing: AppSpacing.sm + 4,
+      crossAxisSpacing: AppSpacing.sm + 4,
+      childAspectRatio: 0.92,
       children: [
         for (final (index, category) in ReportCategory.values.indexed)
           FadeSlideIn(
@@ -64,13 +64,17 @@ class _CategoryTile extends StatelessWidget {
                 ? Image.asset(imagePath, width: double.infinity, fit: BoxFit.cover)
                 : Container(
                     width: double.infinity,
-                    color: AppColors.primaryLight,
+                    color: AppColors.border.withOpacity(0.6),
                     alignment: Alignment.center,
-                    child: Icon(category.icon, size: 26, color: AppColors.primary),
+                    child: const Icon(
+                      Icons.more_horiz_rounded,
+                      size: 30,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: AppSpacing.xs),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: AppSpacing.xs),
             child: Text(
               category.label,
               textAlign: TextAlign.center,
@@ -78,8 +82,8 @@ class _CategoryTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context)
                   .textTheme
-                  .labelSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+                  .labelLarge
+                  ?.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
             ),
           ),
         ],

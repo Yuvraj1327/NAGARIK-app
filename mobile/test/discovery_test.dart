@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart' as latlong;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/constants/report_status.dart';
@@ -161,14 +161,15 @@ void main() {
           home: Scaffold(
             body: ReportMap(
               markers: markers,
-              center: const latlong.LatLng(18.5204, 73.8567),
+              center: const LatLng(18.5204, 73.8567),
             ),
           ),
         ),
       );
       await tester.pump();
 
-      expect(find.byIcon(Icons.location_on), findsNWidgets(2));
+      final map = tester.widget<GoogleMap>(find.byType(GoogleMap));
+      expect(map.markers.length, 2);
     });
   });
 }

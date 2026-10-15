@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -13,29 +14,24 @@ import 'package:nagarik/features/onboarding/presentation/providers/onboarding_pr
 import 'package:nagarik/features/reports/presentation/widgets/report_step_indicator.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
-import 'package:nagarik/shared/widgets/app_button.dart';
-import 'package:nagarik/shared/widgets/app_card.dart';
-import 'package:nagarik/shared/widgets/app_text_field.dart';
 import 'package:nagarik/shared/widgets/logo.dart';
+import 'package:nagarik/shared/widgets/pill_button.dart';
 import 'package:nagarik/shared/widgets/responsive_center.dart';
 
-/// Onboarding redesign: the app's first-run flow — a Welcome page followed
-/// by seven fully optional steps (Language, About, Mobile Number, Age,
-/// Data & Privacy, Permissions, Preferences) — shown once, before the
-/// existing Auth Welcome screen (`/welcome`, "Continue with Email" /
-/// "Continue with Google"), which this flow hands off to unchanged. A
-/// reference app's onboarding was used only to gauge structure/pacing/
-/// polish (one idea per screen, a progress indicator, a visible Skip
-/// everywhere); its own branding, colors, phone-OTP login, and unrelated
-/// features (SOS, emergency contacts, live location sharing) were
-/// deliberately not reused — every screen here is built from NAGARIK's
-/// own palette, copy, and existing components.
+/// First-run onboarding: a Welcome page followed by seven optional steps
+/// (Language, About, Mobile Number, Age, Data & Privacy, Permissions,
+/// Preferences), recreated from the supplied reference screens — segmented
+/// progress bar with a back arrow, large bold headings, rounded cards, and
+/// full-width pill buttons — in NAGARIK's own palette, logo, and copy. It
+/// hands off to the existing Auth Welcome screen (`/welcome`) unchanged.
 ///
-/// Every one of the 7 steps can be skipped, and a step's own Skip only
-/// ever skips *that* step — see `core/routing/app_router.dart` and
-/// `docs/ARCHITECTURE.md`'s write-up for this step for the full
-/// before/after and the auth-gate wiring. Only the Welcome page's
-/// top-right "Skip" leaves the whole flow in one tap.
+/// Features from the reference that NAGARIK doesn't have are deliberately
+/// not faked: no phone-OTP login (Email/Google remain the only sign-in
+/// methods), no SOS/"I'm Safe", no alert radius/kinds or notifications, no
+/// analytics/marketing consents.
+///
+/// Every step is skippable. The header "Skip" skips only the current step;
+/// Welcome's top-right "Skip" leaves the whole flow.
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -49,22 +45,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   int _currentStep = 0;
   final OnboardingDraft _draft = OnboardingDraft();
+  String? _phoneError;
 
   Future<void> _finish() async {
     await ref.read(onboardingServiceProvider).markFinished();
     if (!mounted) return;
-    // Replaces the whole stack rather than pushing — there's nothing to
-    // come "back" to from the real auth screens once onboarding is done,
-    // exactly like a fresh, onboarding-skipped cold start would land here.
+    // Replaces the whole stack — nothing to come "back" to from auth.
     context.go('/welcome');
   }
 
   void _onGetStarted() => setState(() => _currentStep = 1);
-
-  /// Guards [_onContinue]/[_onSkipStep]: both `await` before advancing, so
-  /// a quick double-tap would otherwise advance two steps (or call
-  /// [_finish] twice).
-  bool _isBusy = false;
 
   void _onBack() {
     if (_currentStep > 0) {
@@ -74,59 +64,51 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  /// Jumps straight to a given step — used by Step 7's "Change" link back
-  /// to the language choice on Step 1, the same "edit an earlier step"
-  /// pattern `CreateReportScreen`'s Review step uses.
   void _editStep(int step) => setState(() => _currentStep = step);
 
   Future<void> _onContinue() async {
-    if (_isBusy) return;
-    _isBusy = true;
-    try {
-      await _saveCurrentStep();
-      await _advance();
-    } finally {
-      _isBusy = false;
-    }
-  }
-
-  Future<void> _saveCurrentStep() async {
-    // An if-chain rather than a `switch` on purpose — same reasoning as
-    // `CreateReportScreen._onContinue`: only one of these can ever apply
-    // per call (`_currentStep` is a single value), and a standard Dart
-    // `switch` statement doesn't allow a non-empty case to fall through to
-    // the next one without an explicit `continue <label>;` anyway.
+    // if-chain rather than `switch` (a non-empty Dart switch case can't
+    // fall through, and only one step is active per call anyway).
     final onboarding = ref.read(onboardingServiceProvider);
     if (_currentStep == 1) {
       final language = _draft.language;
       if (language != null) await onboarding.setLanguage(language);
     }
     if (_currentStep == 3) {
-      final phone = _draft.phoneNumber.trim();
-      if (phone.isNotEmpty) await onboarding.setPendingPhoneNumber(phone);
+      final digits = _draft.phoneNumber.trim();
+      if (digits.isNotEmpty) {
+        if (digits.length != 10) {
+          setState(() => _phoneError = 'Enter a 10-digit mobile number, or skip this step.');
+          return;
+        }
+        await onboarding.setPendingPhoneNumber('+91$digits');
+      }
     }
-    if (_currentStep == 4) {
-      final ageGroup = _draft.ageGroup;
-      if (ageGroup != null) await onboarding.setAgeGroup(ageGroup);
+    if (_currentStep == 5) {
+      await onboarding.setConsents(
+        location: _draft.locationPreviewEnabled,
+        camera: _draft.cameraPreviewEnabled,
+      );
     }
+    await _advance();
   }
 
-  /// Skip only ever discards whatever is sitting in [_draft] for the step
-  /// being left (see that class's doc comment) — it never calls into
-  /// [OnboardingService], it just moves on.
-  Future<void> _onSkipStep() async {
-    if (_isBusy) return;
-    _isBusy = true;
-    try {
-      await _advance();
-    } finally {
-      _isBusy = false;
-    }
+  Future<void> _onPickAge(AgeGroup ageGroup) async {
+    _draft.ageGroup = ageGroup;
+    await ref.read(onboardingServiceProvider).setAgeGroup(ageGroup);
+    await _advance();
   }
+
+  /// Skip only discards whatever the current step holds in [_draft] — it
+  /// never saves anything, it just moves on.
+  Future<void> _onSkipStep() => _advance();
 
   Future<void> _advance() async {
     if (_currentStep < _lastStep) {
-      setState(() => _currentStep += 1);
+      setState(() {
+        _phoneError = null;
+        _currentStep += 1;
+      });
     } else {
       await _finish();
     }
@@ -135,65 +117,64 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget _buildStepBody() {
     switch (_currentStep) {
       case 1:
-        return _OnboardingStepScaffold(
+        return _LanguageStep(
           key: const ValueKey(1),
-          title: 'Choose your language',
-          subtitle: 'You can change this anytime from Preferences.',
-          child: _LanguageStep(
-            selected: _draft.language,
-            onSelected: (language) => setState(() => _draft.language = language),
-          ),
+          selected: _draft.language ?? OnboardingLanguage.english,
+          onSelected: (language) => setState(() => _draft.language = language),
         );
       case 2:
-        return const _OnboardingStepScaffold(
-          key: ValueKey(2),
-          title: 'About NAGARIK',
-          subtitle: 'A quick look at what this app is for.',
-          child: _AboutStep(),
-        );
+        return const _AboutStep(key: ValueKey(2));
       case 3:
-        return _OnboardingStepScaffold(
+        return _MobileNumberStep(
           key: const ValueKey(3),
-          title: 'Stay reachable (optional)',
-          subtitle: "We'll only ever use this if a reviewer needs to reach you about a report.",
-          child: _MobileNumberStep(draft: _draft),
+          draft: _draft,
+          errorText: _phoneError,
+          onChanged: () {
+            if (_phoneError != null) setState(() => _phoneError = null);
+          },
         );
       case 4:
-        return _OnboardingStepScaffold(
-          key: const ValueKey(4),
-          title: 'Are you 18 or older?',
-          subtitle: 'Just so we can tailor a couple of things — entirely optional.',
-          child: _AgeStep(
-            selected: _draft.ageGroup,
-            onSelected: (ageGroup) => setState(() => _draft.ageGroup = ageGroup),
-          ),
-        );
+        return const _AgeStep(key: ValueKey(4));
       case 5:
-        return _OnboardingStepScaffold(
-          key: const ValueKey(5),
-          title: 'Data & privacy',
-          subtitle: 'Choose what NAGARIK is allowed to ask for next.',
-          child: _PrivacyStep(draft: _draft),
-        );
+        return _PrivacyStep(key: const ValueKey(5), draft: _draft);
       case 6:
-        return _OnboardingStepScaffold(
-          key: const ValueKey(6),
-          title: 'Permissions',
-          subtitle: 'Only what report creation actually uses — nothing runs in the background.',
-          child: _PermissionsStep(draft: _draft),
-        );
+        return _PermissionsStep(key: const ValueKey(6), draft: _draft);
       case 7:
       default:
-        return _OnboardingStepScaffold(
+        return _PreferencesStep(
           key: const ValueKey(7),
-          title: 'Preferences',
-          subtitle: "Last step — you're almost in.",
-          child: _PreferencesStep(
-            language: _draft.language,
-            onEditLanguage: () => _editStep(1),
-          ),
+          language: _draft.language ?? OnboardingLanguage.english,
+          onEditLanguage: () => _editStep(1),
         );
     }
+  }
+
+  Widget _buildBottomBar() {
+    if (_currentStep == 4) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PillButton(label: "Yes, I'm 18 or older", onPressed: () => _onPickAge(AgeGroup.eighteenOrOlder)),
+          const SizedBox(height: AppSpacing.sm),
+          PillButton(
+            label: "No, I'm under 18",
+            variant: PillButtonVariant.outlined,
+            onPressed: () => _onPickAge(AgeGroup.underEighteen),
+          ),
+        ],
+      );
+    }
+    final label = switch (_currentStep) {
+      2 => 'I understand, continue',
+      5 => 'Continue with my choices',
+      7 => 'Finish and open NAGARIK',
+      _ => 'Continue',
+    };
+    return PillButton(
+      label: label,
+      variant: _currentStep == 6 ? PillButtonVariant.soft : PillButtonVariant.primary,
+      onPressed: _onContinue,
+    );
   }
 
   @override
@@ -202,80 +183,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       return _WelcomePage(onGetStarted: _onGetStarted, onSkip: _finish);
     }
 
-    final isLastStep = _currentStep == _lastStep;
-
-    // The system/gesture back button steps back through onboarding instead
-    // of closing the app from the middle of the flow.
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _onBack();
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: SafeArea(
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: ResponsiveCenter(
           child: Column(
             children: [
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(AppSpacing.xs, AppSpacing.xs, AppSpacing.lg, AppSpacing.xs),
+                padding: const EdgeInsets.fromLTRB(AppSpacing.xs, AppSpacing.sm, AppSpacing.xs, 0),
                 child: Row(
                   children: [
-                    IconButton(onPressed: _onBack, icon: const Icon(Icons.arrow_back)),
+                    IconButton(onPressed: _onBack, icon: const Icon(Icons.arrow_back_ios_new, size: 20)),
                     Expanded(
                       child: ReportStepIndicator(stepCount: _lastStep, currentStep: _currentStep - 1),
+                    ),
+                    TextButton(
+                      onPressed: _onSkipStep,
+                      child: const Text('Skip', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
               ),
               Expanded(
-                child: ResponsiveCenter(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.lg,
-                      AppSpacing.sm,
-                      AppSpacing.lg,
-                      AppSpacing.lg,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 240),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.03),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
-                        ),
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.lg),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.04, 0),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
                       ),
-                      child: _buildStepBody(),
                     ),
+                    child: _buildStepBody(),
                   ),
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _onSkipStep,
-                        child: const Text('Skip'),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      flex: 2,
-                      child: AppButton(
-                        label: isLastStep ? 'Finish' : 'Continue',
-                        onPressed: _onContinue,
-                      ),
-                    ),
-                  ],
-                ),
+                child: _buildBottomBar(),
               ),
             ],
           ),
@@ -395,7 +348,7 @@ class _WelcomePage extends StatelessWidget {
                 ),
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 280),
-                  child: AppButton(label: 'Get Started', onPressed: onGetStarted),
+                  child: PillButton(label: 'Get Started', onPressed: onGetStarted),
                 ),
               ],
             ),
@@ -436,46 +389,84 @@ class _OnboardingDots extends StatelessWidget {
   }
 }
 
-/// Shared title + subtitle header above every numbered step's own content
-/// — same role as `CreateReportScreen`'s `_StepScaffold`.
-class _OnboardingStepScaffold extends StatelessWidget {
-  const _OnboardingStepScaffold(
-      {super.key, required this.title, required this.subtitle, required this.child});
+/// Big bold step title (+ optional subtitle), left-aligned like the
+/// reference unless [center] is set (Language step).
+class _OnboardingTitle extends StatelessWidget {
+  const _OnboardingTitle({required this.title, this.subtitle, this.center = false});
 
   final String title;
-  final String subtitle;
-  final Widget child;
+  final String? subtitle;
+  final bool center;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final align = center ? TextAlign.center : TextAlign.start;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: center ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
-        Text(title, style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: AppSpacing.xs),
-        Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.lg),
-        child,
+        Text(
+          title,
+          textAlign: align,
+          style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30, fontWeight: FontWeight.w800),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            subtitle!,
+            textAlign: align,
+            style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary, height: 1.4),
+          ),
+        ],
       ],
     );
   }
 }
 
-/// A single tappable choice row — shared by Step 1 (Language) and Step 4
-/// (Age), the two steps that are just "pick one of a few options".
-class _SelectableOptionTile extends StatelessWidget {
-  const _SelectableOptionTile({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.icon,
-  });
+/// Step 1 — Language: centered logo and title, three radio rows.
+class _LanguageStep extends StatelessWidget {
+  const _LanguageStep({super.key, required this.selected, required this.onSelected});
+
+  final OnboardingLanguage selected;
+  final ValueChanged<OnboardingLanguage> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(child: Logo(size: 76)),
+        const SizedBox(height: AppSpacing.lg),
+        const _OnboardingTitle(
+          title: 'Choose your language',
+          subtitle: 'अपनी भाषा चुनें · तुमची भाषा निवडा',
+          center: true,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        for (final language in OnboardingLanguage.values) ...[
+          _LanguageRow(
+            label: language.label,
+            isSelected: language == selected,
+            onTap: () => onSelected(language),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        Text(
+          'You can change this any time in Preferences.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ],
+    );
+  }
+}
+
+class _LanguageRow extends StatelessWidget {
+  const _LanguageRow({required this.label, required this.isSelected, required this.onTap});
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -485,36 +476,31 @@ class _SelectableOptionTile extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryLight : AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
-              width: isSelected ? 2 : 1,
-            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: 2),
           ),
           child: Row(
             children: [
-              if (icon != null) ...[
-                Icon(icon, color: isSelected ? AppColors.primary : AppColors.textSecondary, size: 22),
-                const SizedBox(width: AppSpacing.sm),
-              ],
               Expanded(
                 child: Text(
                   label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                      ),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                 ),
               ),
-              if (isSelected)
-                const CircleAvatar(
-                  radius: 11,
-                  backgroundColor: AppColors.primary,
-                  child: Icon(Icons.check, size: 14, color: AppColors.onPrimary),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? AppColors.primary : Colors.transparent,
+                  border: isSelected ? null : Border.all(color: AppColors.border, width: 2),
                 ),
+              ),
             ],
           ),
         ),
@@ -523,90 +509,126 @@ class _SelectableOptionTile extends StatelessWidget {
   }
 }
 
-/// Step 1 — Language.
-class _LanguageStep extends StatelessWidget {
-  const _LanguageStep({required this.selected, required this.onSelected});
-
-  final OnboardingLanguage? selected;
-  final ValueChanged<OnboardingLanguage> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final language in OnboardingLanguage.values) ...[
-          _SelectableOptionTile(
-            label: language.label,
-            icon: Icons.language,
-            isSelected: language == selected,
-            onTap: () => onSelected(language),
-          ),
-          if (language != OnboardingLanguage.values.last) const SizedBox(height: AppSpacing.sm),
-        ],
-      ],
-    );
-  }
-}
-
-/// Step 2 — About NAGARIK. Plain, static information hierarchy (heading +
-/// body, repeated) — the reference screenshots' own structure for this
-/// kind of screen, not their copy or branding. Deliberately not built on
-/// top of `StaticContentScreen` (Settings -> About NAGARIK): that widget
-/// owns its own `Scaffold`/`AppBar`, which doesn't fit being embedded as
-/// one step's body here.
+/// Step 2 — About: logo, headline, three icon rows, and the "not an
+/// emergency service" notice.
 class _AboutStep extends StatelessWidget {
-  const _AboutStep();
+  const _AboutStep({super.key});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final section in _sections) ...[
-          Text(section.$1, style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.xs),
-          Text(section.$2, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45)),
-          const SizedBox(height: AppSpacing.md),
-        ],
+        const Align(alignment: Alignment.centerLeft, child: Logo(size: 64)),
+        const SizedBox(height: AppSpacing.lg),
+        const _OnboardingTitle(
+          title: "Fix what's around you.",
+          subtitle: 'Report it, track it, see it resolved.',
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        const _InfoRow(
+          icon: Icons.verified_outlined,
+          title: 'Every report is tracked',
+          body: 'Follow it from Submitted through In Review to Resolved.',
+        ),
+        const _InfoRow(
+          icon: Icons.location_on_outlined,
+          title: 'Pinned to the exact spot',
+          body: 'A photo and a location help the right team find the problem.',
+        ),
+        const _InfoRow(
+          icon: Icons.history,
+          title: 'Everything in one place',
+          body: 'Sign in to see all your reports in My Reports, and browse nearby ones.',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.phone_outlined, color: AppColors.textPrimary),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+                    children: const [
+                      TextSpan(
+                        text: 'NAGARIK is not an emergency service. ',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      TextSpan(text: 'If you or someone is in danger, call 112.'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
-
-  static const List<(String, String)> _sections = [
-    (
-      'What NAGARIK does',
-      'NAGARIK gives you a simple way to report civic issues in your '
-          'area — potholes, broken streetlights, sanitation problems, water '
-          'and electricity faults, and safety hazards — with a photo and an '
-          'exact location.',
-    ),
-    (
-      'Why report it',
-      'Local authorities can only fix what they know about. A clear report '
-          'with a photo and location gets an issue in front of the right '
-          'team faster than waiting for someone else to notice it.',
-    ),
-    (
-      'How it helps your area',
-      'Every report is tracked from Submitted through In Review to '
-          "Resolved, and you can browse what's already been reported nearby "
-          '— so small problems get fixed before they become bigger ones.',
-    ),
-  ];
 }
 
-/// Step 3 — Mobile Number. Purely optional contact info, never used for
-/// sign-in: Email/Password and "Continue with Google" remain the only two
-/// ways into the app (see `AuthRepository` — no OTP path exists anywhere).
-/// Saved locally by the parent's Continue handler and later written to the
-/// real account's `user_metadata` once one exists (`AuthRepository`'s
-/// `_syncPendingOnboardingPhone`) — see `OnboardingService`'s doc comment.
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.title, required this.body});
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleMedium?.copyWith(fontSize: 17)),
+                const SizedBox(height: 2),
+                Text(body, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Step 3 — Mobile number: optional, +91 prefix cell plus digits. Saved
+/// only as contact info (never used to sign in) — see `OnboardingService`.
 class _MobileNumberStep extends StatefulWidget {
-  const _MobileNumberStep({required this.draft});
+  const _MobileNumberStep({
+    super.key,
+    required this.draft,
+    required this.errorText,
+    required this.onChanged,
+  });
 
   final OnboardingDraft draft;
+  final String? errorText;
+  final VoidCallback onChanged;
 
   @override
   State<_MobileNumberStep> createState() => _MobileNumberStepState();
@@ -617,14 +639,66 @@ class _MobileNumberStepState extends State<_MobileNumberStep> {
 
   @override
   Widget build(BuildContext context) {
-    return AppTextField(
-      label: 'Mobile number (optional)',
-      hintText: 'e.g. 98765 43210',
-      controller: _controller,
-      keyboardType: TextInputType.phone,
-      maxLength: 15,
-      prefixIcon: Icons.call_outlined,
-      onChanged: (value) => widget.draft.phoneNumber = value,
+    final theme = Theme.of(context);
+    final hasError = widget.errorText != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: AppSpacing.md),
+        const _OnboardingTitle(
+          title: 'Your mobile number',
+          subtitle: "Optional. It's only used if a reviewer needs to reach you about a report — "
+              "you'll still sign in with email or Google.",
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text('Mobile number', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpacing.sm),
+        Container(
+          height: 64,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: hasError ? AppColors.error : AppColors.border, width: 2),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              Container(
+                width: 72,
+                alignment: Alignment.center,
+                color: AppColors.background,
+                child: const Text('+91', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  onChanged: (value) {
+                    widget.draft.phoneNumber = value;
+                    widget.onChanged();
+                  },
+                  decoration: const InputDecoration(
+                    hintText: '98765 43210',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(widget.errorText!, style: theme.textTheme.bodySmall?.copyWith(color: AppColors.error)),
+        ],
+      ],
     );
   }
 
@@ -635,37 +709,28 @@ class _MobileNumberStepState extends State<_MobileNumberStep> {
   }
 }
 
-/// Step 4 — Age.
+/// Step 4 — Age. The two answer buttons live in the screen's bottom bar
+/// (tapping one records it and moves on); Skip is in the header.
 class _AgeStep extends StatelessWidget {
-  const _AgeStep({required this.selected, required this.onSelected});
-
-  final AgeGroup? selected;
-  final ValueChanged<AgeGroup> onSelected;
+  const _AgeStep({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final ageGroup in AgeGroup.values) ...[
-          _SelectableOptionTile(
-            label: ageGroup.label,
-            icon: Icons.cake_outlined,
-            isSelected: ageGroup == selected,
-            onTap: () => onSelected(ageGroup),
-          ),
-          if (ageGroup != AgeGroup.values.last) const SizedBox(height: AppSpacing.sm),
-        ],
-      ],
+    return const Padding(
+      padding: EdgeInsets.only(top: AppSpacing.xl),
+      child: _OnboardingTitle(
+        title: 'Are you 18 or older?',
+        subtitle: 'This helps us follow data protection rules. It is entirely optional — '
+            'you can skip it.',
+      ),
     );
   }
 }
 
-/// Step 5 — Data & Privacy. Two switches that preview the two permissions
-/// Step 6 actually requests, so turning one off here means Step 6 won't
-/// bother triggering that OS prompt at all (see `_PermissionsStep`).
+/// Step 5 — Data & privacy: a "needed to sign in" box, then one switch per
+/// consent. Both default to on; Step 6 only asks the OS for what's still on.
 class _PrivacyStep extends StatefulWidget {
-  const _PrivacyStep({required this.draft});
+  const _PrivacyStep({super.key, required this.draft});
 
   final OnboardingDraft draft;
 
@@ -676,91 +741,112 @@ class _PrivacyStep extends StatefulWidget {
 class _PrivacyStepState extends State<_PrivacyStep> {
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'NAGARIK only ever asks for what report creation itself needs, '
-          "and only when you're actively creating a report — never in the "
-          'background. Turn either of these off now, or just say no to the '
-          'real permission prompt on the next step; either way the app '
-          'still works, with that one feature unavailable.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+        const _OnboardingTitle(
+          title: 'Your data, your choice',
+          subtitle: 'Turn on only what you want. Each switch is a separate consent, and your '
+              'phone still asks before anything is shared.',
         ),
-        const SizedBox(height: AppSpacing.md),
-        AppCard(
+        const SizedBox(height: AppSpacing.lg),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(22),
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _PrivacySwitchRow(
-                icon: Icons.location_on_outlined,
-                title: 'Location',
-                subtitle: 'Tag a report with where the issue actually is.',
-                value: widget.draft.locationPreviewEnabled,
-                onChanged: (value) => setState(() => widget.draft.locationPreviewEnabled = value),
+              Text(
+                'NEEDED TO SIGN IN',
+                style: theme.textTheme.bodySmall?.copyWith(letterSpacing: 1.4, fontWeight: FontWeight.w700),
               ),
-              const Divider(height: AppSpacing.lg),
-              _PrivacySwitchRow(
-                icon: Icons.camera_alt_outlined,
-                title: 'Camera & photos',
-                subtitle: 'Attach a photo of the issue to your report.',
-                value: widget.draft.cameraPreviewEnabled,
-                onChanged: (value) => setState(() => widget.draft.cameraPreviewEnabled = value),
+              const SizedBox(height: AppSpacing.xs),
+              Text('Your email address', style: theme.textTheme.titleMedium?.copyWith(fontSize: 18)),
+              const SizedBox(height: 2),
+              Text(
+                'To sign you in and keep your reports linked to you.',
+                style: theme.textTheme.bodyMedium,
               ),
             ],
           ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'YOU CHOOSE',
+          style: theme.textTheme.bodySmall?.copyWith(letterSpacing: 1.4, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _ConsentRow(
+          title: 'Location',
+          body: 'Tag a report with where the issue is, and show what is near you.',
+          value: widget.draft.locationPreviewEnabled,
+          onChanged: (value) => setState(() => widget.draft.locationPreviewEnabled = value),
+        ),
+        const Divider(height: 1),
+        _ConsentRow(
+          title: 'Camera & photos',
+          body: 'Attach the photos you choose to a report.',
+          value: widget.draft.cameraPreviewEnabled,
+          onChanged: (value) => setState(() => widget.draft.cameraPreviewEnabled = value),
+        ),
+        const Divider(height: 1),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'You can continue with everything off. Features that need a consent you '
+          "haven't given simply won't be available.",
+          style: theme.textTheme.bodyMedium,
         ),
       ],
     );
   }
 }
 
-class _PrivacySwitchRow extends StatelessWidget {
-  const _PrivacySwitchRow({
-    required this.icon,
+class _ConsentRow extends StatelessWidget {
+  const _ConsentRow({
     required this.title,
-    required this.subtitle,
+    required this.body,
     required this.value,
     required this.onChanged,
   });
 
-  final IconData icon;
   final String title;
-  final String subtitle;
+  final String body;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: AppColors.primary, size: 22),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-            ],
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleMedium?.copyWith(fontSize: 18)),
+                const SizedBox(height: 2),
+                Text(body, style: theme.textTheme.bodyMedium),
+              ],
+            ),
           ),
-        ),
-        Switch(value: value, onChanged: onChanged, activeThumbColor: AppColors.primary),
-      ],
+          const SizedBox(width: AppSpacing.md),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
     );
   }
 }
 
-/// Step 6 — Permissions. Real device permission prompts via
-/// `permission_handler` (see `pubspec.yaml`'s comment on why this package
-/// was added — `geolocator`/`image_picker` cover these permissions when a
-/// report actually uses them, but neither exposes a way to just ask for
-/// permission without also immediately fetching a position or opening the
-/// camera, which is what this step needs). Denying either one here never
-/// blocks Continue — the person can always grant it later, from the
-/// report-creation screens that actually use it, or from device Settings.
+/// Step 6 — Permissions: real OS prompts via `permission_handler`. Denying
+/// (or a Step 5 opt-out) never blocks Continue.
 class _PermissionsStep extends StatefulWidget {
-  const _PermissionsStep({required this.draft});
+  const _PermissionsStep({super.key, required this.draft});
 
   final OnboardingDraft draft;
 
@@ -799,24 +885,38 @@ class _PermissionsStepState extends State<_PermissionsStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _OnboardingTitle(
+          title: 'Two phone permissions',
+          subtitle: 'Your phone will ask you to confirm each one.',
+        ),
+        const SizedBox(height: AppSpacing.lg),
         _PermissionCard(
           icon: Icons.location_on_outlined,
           title: 'Location',
-          rationale: 'So a report can be tagged with exactly where the issue is.',
-          previewEnabled: widget.draft.locationPreviewEnabled,
+          body: 'To place a report on the map and show what is near you.',
+          buttonLabel: 'Allow while using the app',
+          primaryButton: true,
+          enabled: widget.draft.locationPreviewEnabled,
           status: _locationStatus,
           isRequesting: _isRequestingLocation,
           onAllow: _requestLocation,
         ),
         const SizedBox(height: AppSpacing.md),
         _PermissionCard(
-          icon: Icons.camera_alt_outlined,
+          icon: Icons.photo_camera_outlined,
           title: 'Camera & photos',
-          rationale: 'So you can attach a photo of the issue to your report.',
-          previewEnabled: widget.draft.cameraPreviewEnabled,
+          body: 'To attach a photo of the issue to your report.',
+          buttonLabel: 'Allow camera',
+          primaryButton: false,
+          enabled: widget.draft.cameraPreviewEnabled,
           status: _cameraStatus,
           isRequesting: _isRequestingCamera,
           onAllow: _requestCamera,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Skipped one? You can still allow it later when you report an issue.',
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
     );
@@ -827,8 +927,10 @@ class _PermissionCard extends StatelessWidget {
   const _PermissionCard({
     required this.icon,
     required this.title,
-    required this.rationale,
-    required this.previewEnabled,
+    required this.body,
+    required this.buttonLabel,
+    required this.primaryButton,
+    required this.enabled,
     required this.status,
     required this.isRequesting,
     required this.onAllow,
@@ -836,162 +938,186 @@ class _PermissionCard extends StatelessWidget {
 
   final IconData icon;
   final String title;
-  final String rationale;
-  final bool previewEnabled;
+  final String body;
+  final String buttonLabel;
+  final bool primaryButton;
+  final bool enabled;
   final PermissionStatus? status;
   final bool isRequesting;
   final VoidCallback onAllow;
 
+  Widget _action() {
+    if (!enabled) return const SizedBox.shrink();
+    final current = status;
+    if (current != null && current.isGranted) {
+      return const Row(
+        children: [
+          Icon(Icons.check_circle, color: AppColors.success),
+          SizedBox(width: AppSpacing.xs),
+          Text('Allowed', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.success)),
+        ],
+      );
+    }
+    if (current != null && current.isPermanentlyDenied) {
+      return PillButton(
+        label: 'Open settings',
+        variant: PillButtonVariant.outlined,
+        onPressed: openAppSettings,
+      );
+    }
+    return PillButton(
+      label: buttonLabel,
+      variant: primaryButton ? PillButtonVariant.primary : PillButtonVariant.outlined,
+      isLoading: isRequesting,
+      onPressed: onAllow,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, color: AppColors.primary, size: 24),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  previewEnabled
-                      ? rationale
-                      : 'You turned this off on the Data & Privacy step — you can still '
-                          "grant it later from this app's settings if you change your mind.",
-                  style: Theme.of(context).textTheme.bodySmall,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              ],
-            ),
+                child: Icon(icon, color: AppColors.primary),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.titleMedium?.copyWith(fontSize: 19)),
+                    const SizedBox(height: 2),
+                    Text(
+                      enabled
+                          ? body
+                          : 'You turned this off on the previous step. You can still allow it '
+                              "later from your phone's settings.",
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          if (previewEnabled) _PermissionAction(status: status, isRequesting: isRequesting, onAllow: onAllow),
+          if (enabled) ...[
+            const SizedBox(height: AppSpacing.md),
+            _action(),
+          ],
         ],
       ),
     );
   }
 }
 
-class _PermissionAction extends StatelessWidget {
-  const _PermissionAction({required this.status, required this.isRequesting, required this.onAllow});
-
-  final PermissionStatus? status;
-  final bool isRequesting;
-  final VoidCallback onAllow;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isRequesting) {
-      return const SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.primary),
-      );
-    }
-    if (status != null && status!.isGranted) {
-      return const Icon(Icons.check_circle, color: AppColors.success, size: 24);
-    }
-    if (status != null && status!.isPermanentlyDenied) {
-      return TextButton(onPressed: openAppSettings, child: const Text('Settings'));
-    }
-    return OutlinedButton(onPressed: onAllow, child: const Text('Allow'));
-  }
-}
-
-/// Step 7 — Preferences. "Only useful NAGARIK preferences" per the brief —
-/// the real, already-persisted theme setting (Settings -> Theme
-/// preference's own `themePreferenceProvider`, not a duplicate of it) plus
-/// a read-back of the Step 1 language choice with a link to change it.
-/// Deliberately does not add any alert/SOS/emergency-contact style
-/// preference — out of scope for this app.
+/// Step 7 — Preferences: appearance (the real, already-persisted theme
+/// setting) as a segmented control, plus the chosen language with Change.
 class _PreferencesStep extends ConsumerWidget {
-  const _PreferencesStep({required this.language, required this.onEditLanguage});
+  const _PreferencesStep({super.key, required this.language, required this.onEditLanguage});
 
-  final OnboardingLanguage? language;
+  final OnboardingLanguage language;
   final VoidCallback onEditLanguage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final themePreference = ref.watch(themePreferenceProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+        const _OnboardingTitle(
+          title: 'Set up NAGARIK',
+          subtitle: 'Last step. You can change this any time.',
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Text('Appearance', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: AppSpacing.sm),
-        AppCard(
-          child: Column(
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
             children: [
-              for (final preference in AppThemePreference.values) ...[
-                _PreferenceOptionRow(
-                  icon: switch (preference) {
-                    AppThemePreference.system => Icons.brightness_auto_outlined,
-                    AppThemePreference.light => Icons.light_mode_outlined,
-                    AppThemePreference.dark => Icons.dark_mode_outlined,
-                  },
-                  label: preference.label,
-                  isSelected: preference == themePreference,
-                  onTap: () => ref.read(themePreferenceProvider.notifier).setPreference(preference),
+              for (final preference in AppThemePreference.values)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => ref.read(themePreferenceProvider.notifier).setPreference(preference),
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: preference == themePreference ? AppColors.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: preference == themePreference
+                            ? const [BoxShadow(blurRadius: 6, offset: Offset(0, 2), color: Color(0x1A12213A))]
+                            : null,
+                      ),
+                      child: Text(
+                        switch (preference) {
+                          AppThemePreference.system => 'System',
+                          AppThemePreference.light => 'Light',
+                          AppThemePreference.dark => 'Dark',
+                        },
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
                 ),
-                if (preference != AppThemePreference.values.last) const SizedBox(height: AppSpacing.xs),
-              ],
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
-        Text('Language', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        AppCard(
+        const SizedBox(height: AppSpacing.lg),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(22),
+          ),
           child: Row(
             children: [
-              const Icon(Icons.language, color: AppColors.primary, size: 22),
-              const SizedBox(width: AppSpacing.sm),
+              const Icon(Icons.language, color: AppColors.textPrimary),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text(
-                  language?.label ?? 'Not set',
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Language', style: theme.textTheme.bodyMedium),
+                    Text(
+                      language.label,
+                      style: theme.textTheme.titleMedium?.copyWith(fontSize: 19, fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
               ),
-              TextButton(onPressed: onEditLanguage, child: const Text('Change')),
+              TextButton(
+                onPressed: onEditLanguage,
+                child: const Text('Change', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _PreferenceOptionRow extends StatelessWidget {
-  const _PreferenceOptionRow({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: isSelected ? AppColors.primary : AppColors.textSecondary),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
-            if (isSelected) const Icon(Icons.check, size: 18, color: AppColors.primary),
-          ],
-        ),
-      ),
     );
   }
 }

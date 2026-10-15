@@ -206,10 +206,23 @@ this is standard Flutter behavior, not a bug in this app. The same camera/
 photo-library permissions also cover Edit Profile's photo picker (Official
 Logo & User Profile Photo upgrade) — no separate declaration needed.
 
+**Report Issue's "Call 112" button** (`url_launcher`) needs, on Android 11+,
+this inside `<manifest>` of `android/app/src/main/AndroidManifest.xml`
+(outside `<application>`), or the dialer link can silently fail to open:
+
+```xml
+<queries>
+  <intent>
+    <action android:name="android.intent.action.DIAL" />
+    <data android:scheme="tel" />
+  </intent>
+</queries>
+```
+
+iOS needs nothing extra for `tel:` links.
+
 **Onboarding redesign's `permission_handler`** reads these exact same
-manifest/`Info.plist` entries, plus `android.permission.CAMERA` in
-`AndroidManifest.xml` (already added) — without it `Permission.camera`
-always reports denied on Android. On iOS
+manifest/`Info.plist` entries — nothing extra to add on Android. On iOS
 only, `permission_handler` additionally needs each permission group it
 uses enabled via a build macro, since its iOS plugin ships every
 permission type behind a compile flag to keep apps that don't need them
@@ -231,45 +244,43 @@ Without this, the "Permissions" step's two "Allow" buttons compile fine
 but the underlying iOS plugin silently reports every permission as
 `denied` — again, standard `permission_handler` behavior, not a bug here.
 
-## Google Maps setup (required for the Report Issue "Place" step map)
+## Google Maps setup
 
-Report Issue redesign: the "Place" step's map (`LocationPickerMap`) uses
-`google_maps_flutter`, a **different** mapping package from the
-`flutter_map`/OpenStreetMap one Search/Nearby use (deliberately — see
-`report_map.dart` and `pubspec.yaml`'s own comments for why that one avoids
-exactly what this section is about). `google_maps_flutter` needs a
-billing-enabled Google Maps API key, configured natively per platform —
-none of which exists yet since this project has never been through
-`flutter create` (see "Native permissions" above for the same caveat).
-Once you've scaffolded `android/`/`ios/`:
+Google Maps (`google_maps_flutter`) powers the Report Issue "Place" picker,
+the read-only map on Report Detail, and Search's Map view. Each platform has
+its **own** key so each can be restricted separately. Flutter's `.env` only
+reaches Dart at runtime, so native SDKs are wired separately:
 
-1. **Create an API key** in Google Cloud Console (APIs & Services →
-   Credentials → Create Credentials → API key), with the **Maps SDK for
-   Android** and **Maps SDK for iOS** APIs enabled for it, and billing
-   enabled on the project (Google requires billing even within the free
-   monthly usage tier). Restrict the key to those two APIs and, ideally,
-   to your app's Android package name/SHA-1 and iOS bundle ID once you
-   have them.
-2. **`android/app/src/main/AndroidManifest.xml`** — add inside
-   `<application>`:
-   ```xml
-   <meta-data
-       android:name="com.google.android.geo.API_KEY"
-       android:value="YOUR_ANDROID_API_KEY" />
-   ```
-3. **`ios/Runner/AppDelegate.swift`** — add the import and one line inside
-   `application(_:didFinishLaunchingWithOptions:)`, before it returns:
-   ```swift
-   import GoogleMaps
-   // ...
-   GMSServices.provideAPIKey("YOUR_IOS_API_KEY")
-   ```
+| Platform | Key in `mobile/.env` | How it reaches the SDK |
+|---|---|---|
+| Android | `GOOGLE_MAPS_ANDROID_API_KEY` | `android/app/build.gradle.kts` reads `.env` (or the same-named env var) into a manifest placeholder → `com.google.android.geo.API_KEY` |
+| iOS | `GOOGLE_MAPS_IOS_API_KEY` | run `tool/sync_maps_keys.sh` → `ios/Flutter/MapsKeys.xcconfig` (gitignored) → `Info.plist` `GMSApiKey` → `GMSServices.provideAPIKey` in `AppDelegate.swift` |
+| Web | `GOOGLE_MAPS_WEB_API_KEY` | loaded at startup by `lib/core/maps/` via `web/maps_loader.js` (no key in `index.html`) |
 
-Without this, the Place step's map renders a blank/grey tile area at
-runtime (a `google_maps_flutter`/Google Maps SDK behavior, not a bug in
-this app's Dart code) — everything else in report creation (category,
-photos, description, City/PIN fields, submission) keeps working normally
-either way, since those never depend on the map actually rendering tiles.
+1. Copy the three `GOOGLE_MAPS_*` placeholders from `.env.example` into
+   `.env` and replace them with real keys. `.env` is gitignored — never
+   commit real keys. (Without a real web key the web app still runs; map
+   areas show "Map unavailable".)
+2. iOS only: `tool/sync_maps_keys.sh`, then `cd ios && pod install`.
+3. Android: nothing else — rebuild. Web: `flutter run -d chrome`.
+
+**Enable in Google Cloud Console** (billing required): *Maps SDK for
+Android*, *Maps SDK for iOS*, *Maps JavaScript API*. (Address/place text
+uses the device geocoder, so the Geocoding API is not needed.)
+
+**Restrict each key** (APIs & Services → Credentials):
+- Android key: *Android apps* restriction (package `com.example.nagarik` —
+  change to your real ID — plus the signing SHA-1) and API restriction to
+  Maps SDK for Android.
+- iOS key: *iOS apps* restriction (bundle ID) and API restriction to Maps
+  SDK for iOS.
+- Web key: *HTTP referrers* restriction (e.g. `localhost:*`, your
+  production domain) and API restriction to Maps JavaScript API. Web keys
+  are visible in the browser, so the referrer restriction is essential.
+
+Location permission is requested only when the user taps the locate button
+on the Place step (Android `ACCESS_*_LOCATION`, iOS
+`NSLocationWhenInUseUsageDescription` are already declared).
 
 ## App icons
 
@@ -626,3 +637,7 @@ Nothing above blocks running the app today — the whole flow works with
 zero configuration; only Step 6's two "Allow" buttons need the iOS Podfile
 macro (once this project has a real `ios/` folder) to report anything
 other than "denied" on iOS specifically.
+
+## UI refresh: Home, drawer, Search & Discover, My Reports
+
+No new packages or native configuration. The Home "Enable" button uses the existing location permission setup; if permission is permanently denied it opens the OS settings page. See `docs/ARCHITECTURE.md` section 26.

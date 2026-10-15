@@ -11,6 +11,7 @@ import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/domain/report_share.dart';
 import 'package:nagarik/features/reports/domain/report_timeline.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/features/reports/presentation/widgets/report_location_map.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
@@ -228,13 +229,21 @@ class _ReportDetailBody extends StatelessWidget {
         _DetailRow(icon: Icons.location_city_outlined, label: 'City', value: report.city),
         const SizedBox(height: AppSpacing.sm),
         _DetailRow(icon: Icons.pin_drop_outlined, label: 'PIN code', value: report.pinCode),
-        if (report.latitude != null && report.longitude != null) ...[
+        if (isValidCoordinate(report.latitude, report.longitude)) ...[
           const SizedBox(height: AppSpacing.sm),
           _DetailRow(
             icon: Icons.my_location_outlined,
             label: 'Location',
             value:
                 '${report.latitude!.toStringAsFixed(5)}, ${report.longitude!.toStringAsFixed(5)}',
+          ),
+        ],
+        if (isValidCoordinate(report.latitude, report.longitude)) ...[
+          const SizedBox(height: AppSpacing.md),
+          ReportLocationMap(
+            latitude: report.latitude,
+            longitude: report.longitude,
+            title: report.referenceId,
           ),
         ],
         const SizedBox(height: AppSpacing.sm),

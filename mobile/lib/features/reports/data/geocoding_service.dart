@@ -71,4 +71,18 @@ class GeocodingService {
       return (city: null, postalCode: null);
     }
   }
+
+  /// Forward lookup for the Place step's "Search an area or landmark" field
+  /// — the device geocoder's best match for [query], or `null` if nothing
+  /// was found / the lookup failed (the caller shows a friendly message).
+  Future<({double latitude, double longitude})?> coordinatesFromQuery(String query) async {
+    try {
+      final locations = await locationFromAddress(query);
+      if (locations.isEmpty) return null;
+      final first = locations.first;
+      return (latitude: first.latitude, longitude: first.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
 }

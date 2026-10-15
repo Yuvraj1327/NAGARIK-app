@@ -48,16 +48,6 @@ dependencies:
   #    Flutter-team package for small key-value settings like this. --
   shared_preferences: ^2.3.3
 
-  # -- Location Discovery & Home upgrade: the Nearby/Discovery map view. --
-  # `flutter_map` renders OpenStreetMap tiles with no API key and no native
-  # platform setup (unlike `google_maps_flutter`, which needs a billing-
-  # enabled Google Cloud API key configured per-platform) — the simplest
-  # real map for this step's "show real report coordinates on a map"
-  # requirement. `latlong2` is its required companion for the `LatLng`
-  # type; both are maintained by the flutter_map project.
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
-
   # -- Location Discovery & Home upgrade: turns the device's current
   #    coordinates into a readable place name ("Bhopal") for the Home
   #    screen's location indicator. From the same maintainers as
@@ -113,6 +103,13 @@ dependencies:
   #    required, only (on iOS, once this project has a real `ios/` folder)
   #    the small Podfile macro mobile/README.md's new section documents.
   permission_handler: ^11.3.1
+
+  # -- Report Issue UI recreation: the "Call 112" button on the Type step
+  #    (and nothing else) opens the phone dialer via a `tel:` link. The
+  #    standard Flutter-team package for opening a URL/dialer; on Android 11+
+  #    it needs a `<queries>` entry for the `tel` scheme — see
+  #    mobile/README.md's "Native permissions" section. --
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

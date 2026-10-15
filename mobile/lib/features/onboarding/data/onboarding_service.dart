@@ -6,6 +6,8 @@ import 'package:nagarik/features/onboarding/domain/onboarding_language.dart';
 const _donePrefsKey = 'nagarik.onboarding.done';
 const _languagePrefsKey = 'nagarik.onboarding.language';
 const _ageGroupPrefsKey = 'nagarik.onboarding.age_group';
+const _locationConsentPrefsKey = 'nagarik.onboarding.consent_location';
+const _cameraConsentPrefsKey = 'nagarik.onboarding.consent_camera';
 const _pendingPhonePrefsKey = 'nagarik.onboarding.pending_phone';
 
 /// Local-only persistence for the first-run onboarding flow
@@ -112,6 +114,19 @@ class OnboardingService {
       await prefs.remove(_pendingPhonePrefsKey);
     } catch (_) {
       // Worst case this is read (and a no-op re-saved) again next sign-in.
+    }
+  }
+
+  /// Saves Step 5's two consent switches (Data & Privacy). Nothing reads
+  /// these back yet beyond Step 6 within the same session — they're stored
+  /// so a future Settings screen can show/withdraw them.
+  Future<void> setConsents({required bool location, required bool camera}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_locationConsentPrefsKey, location);
+      await prefs.setBool(_cameraConsentPrefsKey, camera);
+    } catch (_) {
+      // Non-critical — safe to drop on a storage error.
     }
   }
 }

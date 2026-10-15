@@ -12,6 +12,7 @@ import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/selectable_chip.dart';
 import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/skeleton.dart';
 
@@ -52,7 +53,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
 
     return Scaffold(
       appBar: const PrimaryAppBar(title: 'My Reports'),
-      drawer: const AppDrawer(),
+      drawer: const AppDrawer(activeRoute: '/my-reports'),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
         child: ResponsiveCenter(
@@ -80,9 +81,12 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
             if (page.items.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 100),
-                  EmptyView.noReports(),
+                children: [
+                  const SizedBox(height: 100),
+                  EmptyView.noReports(
+                    actionLabel: 'Report an Issue',
+                    onAction: () => context.push('/report/create'),
+                  ),
                 ],
               );
             }
@@ -94,7 +98,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
-                    AppSpacing.md,
+                    AppSpacing.sm,
                     AppSpacing.md,
                     0,
                   ),
@@ -108,11 +112,11 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                   child: filtered.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          children: const [
-                            SizedBox(height: 80),
+                          children: [
+                            const SizedBox(height: 80),
                             EmptyView(
                               icon: Icons.filter_alt_off_outlined,
-                              title: 'No reports in this category',
+                              title: 'No ${_filter?.label ?? 'matching'} reports',
                               message: 'Try a different filter above.',
                             ),
                           ],
@@ -122,7 +126,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           itemCount: filtered.length,
                           separatorBuilder: (context, index) =>
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: AppSpacing.sm + 4),
                           itemBuilder: (context, index) {
                             final report = filtered[index];
                             return FadeSlideIn(
@@ -178,6 +182,7 @@ class _StatusFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
       child: Row(
         children: [
           _FilterChip(
@@ -217,10 +222,11 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text('$label ($count)'),
+    return SelectableChip(
+      label: '$label ($count)',
       selected: selected,
-      onSelected: (_) => onTap(),
+      showCheckWhenSelected: true,
+      onTap: onTap,
     );
   }
 }

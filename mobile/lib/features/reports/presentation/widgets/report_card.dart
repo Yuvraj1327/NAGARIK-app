@@ -56,7 +56,15 @@ class ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasFooter = referenceId != null || date != null;
+    final textTheme = Theme.of(context).textTheme;
+    final secondary = textTheme.bodySmall?.copyWith(color: AppColors.textSecondary);
 
+    // Premium card layout (Home / Search / My Reports redesign): a rounded
+    // leading tile — the report's real first photo when it has one, the
+    // category icon on a light-blue tile otherwise — then the category
+    // title with the status pill (and a chevron when tappable) on the
+    // right, the description, the "city · PIN" line, and a divider-separated
+    // footer with the reference id and date.
     return AppCard(
       onTap: onTap,
       child: Column(
@@ -65,38 +73,46 @@ class ReportCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (imageUrl != null) ...[
-                _Thumbnail(imageUrl: imageUrl!),
-                const SizedBox(width: AppSpacing.sm),
-              ],
+              if (imageUrl != null)
+                _Thumbnail(imageUrl: imageUrl!)
+              else
+                _CategoryTile(category: category),
+              const SizedBox(width: AppSpacing.sm + 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(category.icon, size: 20, color: AppColors.primary),
-                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             title,
-                            style: Theme.of(context).textTheme.titleMedium,
+                            style: textTheme.titleMedium,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         StatusBadge(status: status),
+                        if (onTap != null)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 2),
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: AppColors.textDisabled,
+                            ),
+                          ),
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.sm),
+                    const SizedBox(height: 6),
                     Text(
                       description,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: textTheme.bodyMedium,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         const Icon(
@@ -108,7 +124,7 @@ class ReportCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             '$city · $pinCode',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            style: secondary,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -121,27 +137,37 @@ class ReportCard extends StatelessWidget {
             ],
           ),
           if (hasFooter) ...[
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.sm + 4),
             const Divider(height: 1),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.sm),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  referenceId ?? '',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppColors.textSecondary, letterSpacing: 0.3),
-                ),
-                if (date != null)
-                  Text(
-                    formatReportDate(date!),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.textSecondary),
+                if (referenceId != null) ...[
+                  const Icon(
+                    Icons.description_outlined,
+                    size: 15,
+                    color: AppColors.textSecondary,
                   ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      referenceId!,
+                      style: secondary?.copyWith(letterSpacing: 0.3),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (date != null) ...[
+                  const Icon(
+                    Icons.calendar_today_outlined,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(formatReportDate(date!), style: secondary),
+                ],
               ],
             ),
           ],
@@ -151,17 +177,39 @@ class ReportCard extends StatelessWidget {
   }
 }
 
+/// Light-blue rounded tile with the category's icon — the leading visual
+/// when a report has no photo.
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({required this.category});
+
+  final ReportCategory category;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _Thumbnail._size,
+      height: _Thumbnail._size,
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      alignment: Alignment.center,
+      child: Icon(category.icon, size: 26, color: AppColors.primary),
+    );
+  }
+}
+
 class _Thumbnail extends StatelessWidget {
   const _Thumbnail({required this.imageUrl});
 
   final String imageUrl;
 
-  static const double _size = 56;
+  static const double _size = 60;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.sm),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: CachedNetworkImage(
         imageUrl: imageUrl,
         width: _size,

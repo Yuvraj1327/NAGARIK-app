@@ -4,9 +4,19 @@ import 'package:geolocator/geolocator.dart';
 /// safe to show the user directly (permission denied, service disabled,
 /// timeout, etc.) — callers don't need their own switch over failure modes.
 class LocationException implements Exception {
-  const LocationException(this.message);
+  const LocationException(
+    this.message, {
+    this.needsAppSettings = false,
+    this.needsLocationServices = false,
+  });
 
   final String message;
+
+  /// Permission is permanently denied — only the OS app settings can fix it.
+  final bool needsAppSettings;
+
+  /// The device's location services switch is off.
+  final bool needsLocationServices;
 
   @override
   String toString() => message;
@@ -21,6 +31,7 @@ class LocationService {
     if (!serviceEnabled) {
       throw const LocationException(
         'Location services are turned off. Please enable them and try again.',
+        needsLocationServices: true,
       );
     }
 
@@ -37,6 +48,7 @@ class LocationService {
     if (permission == LocationPermission.deniedForever) {
       throw const LocationException(
         'Location permission is permanently denied. Enable it from your device settings.',
+        needsAppSettings: true,
       );
     }
 
@@ -50,4 +62,10 @@ class LocationService {
       );
     }
   }
+
+  /// Opens the OS screen where this app's permissions can be changed.
+  Future<void> openAppSettings() => Geolocator.openAppSettings();
+
+  /// Opens the OS location-services switch.
+  Future<void> openLocationSettings() => Geolocator.openLocationSettings();
 }

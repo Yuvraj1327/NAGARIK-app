@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:nagarik/core/config/env.dart';
+import 'package:nagarik/core/maps/maps_availability.dart';
+import 'package:nagarik/core/maps/maps_loader.dart';
 import 'package:nagarik/core/network/supabase_client_provider.dart';
 import 'package:nagarik/core/routing/app_router.dart';
 import 'package:nagarik/core/startup/splash_screen.dart';
@@ -44,6 +46,7 @@ class _NagarikAppState extends ConsumerState<NagarikApp> {
 
   Future<void> _bootstrap() async {
     await Env.load();
+    MapsAvailability.isAvailable = await ensureGoogleMapsLoaded(Env.googleMapsWebApiKey);
     await initSupabase();
 
     // Onboarding redesign: a first-time, signed-out launch starts on

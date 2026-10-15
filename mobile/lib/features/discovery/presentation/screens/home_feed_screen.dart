@@ -9,18 +9,18 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/discovery/presentation/providers/discovery_providers.dart';
 import 'package:nagarik/features/discovery/presentation/widgets/category_grid.dart';
 import 'package:nagarik/features/discovery/presentation/widgets/discovery_section_header.dart';
-import 'package:nagarik/features/discovery/presentation/widgets/location_indicator.dart';
+import 'package:nagarik/features/discovery/presentation/widgets/location_access_card.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/features/profile/presentation/widgets/profile_avatar_button.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
-import 'package:nagarik/shared/widgets/app_button.dart';
-import 'package:nagarik/shared/widgets/app_card.dart';
+import 'package:nagarik/shared/widgets/app_search_field.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
-import 'package:nagarik/shared/widgets/primary_app_bar.dart';
+import 'package:nagarik/shared/widgets/logo.dart';
 import 'package:nagarik/shared/widgets/responsive_center.dart';
 import 'package:nagarik/shared/widgets/skeleton.dart';
 
@@ -70,26 +70,56 @@ class HomeFeedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'NAGARIK', showLogo: true),
-      drawer: const AppDrawer(),
+      appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu_rounded),
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        titleSpacing: 0,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Logo(size: 28),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'NAGARIK',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    letterSpacing: 0.5,
+                  ),
+            ),
+          ],
+        ),
+        actions: const [ProfileAvatarButton()],
+      ),
+      drawer: const AppDrawer(activeRoute: '/home'),
       body: RefreshIndicator(
         onRefresh: () => _onRefresh(ref),
         child: ResponsiveCenter(
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.lg,
+            ),
             children: const [
-              FadeSlideIn(child: _GreetingAndLocation()),
+              FadeSlideIn(child: _Greeting()),
               SizedBox(height: AppSpacing.md),
               FadeSlideIn(delay: Duration(milliseconds: 60), child: _SearchShortcut()),
+              SizedBox(height: AppSpacing.md),
+              FadeSlideIn(delay: Duration(milliseconds: 100), child: LocationAccessCard()),
               SizedBox(height: AppSpacing.lg),
-              FadeSlideIn(delay: Duration(milliseconds: 120), child: _NearbyIssuesSection()),
+              FadeSlideIn(delay: Duration(milliseconds: 140), child: _CategorySection()),
               SizedBox(height: AppSpacing.lg),
-              FadeSlideIn(delay: Duration(milliseconds: 160), child: _CategorySection()),
+              FadeSlideIn(delay: Duration(milliseconds: 180), child: _NearbyIssuesSection()),
               SizedBox(height: AppSpacing.lg),
-              FadeSlideIn(delay: Duration(milliseconds: 200), child: _RecentReportsSection()),
-              SizedBox(height: AppSpacing.lg),
-              FadeSlideIn(delay: Duration(milliseconds: 240), child: _ReportIssueCta()),
+              FadeSlideIn(delay: Duration(milliseconds: 220), child: _RecentReportsSection()),
             ],
           ),
         ),
@@ -98,29 +128,27 @@ class HomeFeedScreen extends ConsumerWidget {
   }
 }
 
-class _GreetingAndLocation extends ConsumerWidget {
-  const _GreetingAndLocation();
-
-  /// "Hello, Asha Rao 👋", or "Hello there 👋" while the profile is still
-  /// loading, failed to load, or has no name on it (never the email).
-  static String greetingFor(String? name) => name != null ? 'Hello, $name 👋' : 'Hello there 👋';
+class _Greeting extends ConsumerWidget {
+  const _Greeting();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final name = profileAsync.asData?.value.nameOrNull;
+    final fullName = profileAsync.asData?.value.displayName;
+    final firstName = fullName == null ? null : fullName.trim().split(RegExp(r'\s+')).first;
+    final textTheme = Theme.of(context).textTheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          greetingFor(name),
+          firstName != null && firstName.isNotEmpty ? 'Hello, $firstName 👋' : 'Hello 👋',
+          style: textTheme.headlineMedium,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: AppSpacing.xs),
-        const LocationIndicator(),
+        Text("Let's make our city better together", style: textTheme.bodyMedium),
       ],
     );
   }
@@ -131,19 +159,7 @@ class _SearchShortcut extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      onTap: () => context.go('/search'),
-      child: Row(
-        children: [
-          const Icon(Icons.search, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            'Search civic issues…',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
+    return AppSearchField(readOnly: true, onTap: () => context.go('/search'));
   }
 }
 
@@ -208,6 +224,16 @@ class _NearbyIssuesSection extends ConsumerWidget {
                   ),
           ),
         ),
+        // Lightweight shortcut only — the map itself lives in Search and
+        // is not loaded on Home.
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => context.go('/search?nearby=true&view=map'),
+            icon: const Icon(Icons.map_outlined, size: 18),
+            label: const Text('View Nearby Reports on Map'),
+          ),
+        ),
       ],
     );
   }
@@ -221,10 +247,16 @@ class _CategorySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const DiscoverySectionHeader(title: 'Explore by Category'),
+        // Tapping a card starts the guided Report Issue flow with that
+        // category already selected; browsing existing reports by category
+        // lives in Search & Discover.
+        DiscoverySectionHeader(
+          title: 'Report an Issue',
+          onSeeAll: () => context.push('/report/create'),
+        ),
         const SizedBox(height: AppSpacing.sm),
         CategoryGrid(
-          onCategoryTap: (category) => context.go('/search?category=${category.name}'),
+          onCategoryTap: (category) => context.push('/report/create?category=${category.name}'),
         ),
       ],
     );
@@ -300,19 +332,6 @@ class _RecentReportsList extends StatelessWidget {
           if (index != reports.length - 1) const SizedBox(height: AppSpacing.sm),
         ],
       ],
-    );
-  }
-}
-
-class _ReportIssueCta extends StatelessWidget {
-  const _ReportIssueCta();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppButton(
-      label: 'Report an Issue',
-      icon: Icons.add_alert_outlined,
-      onPressed: () => context.push('/report/create'),
     );
   }
 }

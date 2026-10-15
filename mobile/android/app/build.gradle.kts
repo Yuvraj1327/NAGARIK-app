@@ -5,6 +5,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Google Maps SDK for Android reads its key from the manifest at build time,
+// so flutter_dotenv (a runtime-only loader) can't supply it. Read the same
+// mobile/.env here instead; a GOOGLE_MAPS_ANDROID_API_KEY environment
+// variable (e.g. CI) takes precedence. Never printed or hardcoded.
+val mapsAndroidKey: String = System.getenv("GOOGLE_MAPS_ANDROID_API_KEY")
+    ?: rootProject.file("../.env").takeIf { it.exists() }
+        ?.readLines()
+        ?.firstOrNull { it.trim().startsWith("GOOGLE_MAPS_ANDROID_API_KEY=") }
+        ?.substringAfter("=")?.trim()?.trim('"', '\'')
+    ?: ""
+
 android {
     namespace = "com.example.nagarik"
     compileSdk = flutter.compileSdkVersion
@@ -28,6 +39,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["GOOGLE_MAPS_ANDROID_API_KEY"] = mapsAndroidKey
     }
 
     buildTypes {

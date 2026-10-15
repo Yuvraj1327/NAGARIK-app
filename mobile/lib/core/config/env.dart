@@ -33,6 +33,18 @@ class Env {
   /// automatically — it has to come from here instead. Unused on Android.
   static String? get googleIosClientId => _optional('GOOGLE_IOS_CLIENT_ID');
 
+  /// Google Maps keys (one per platform, so each can be restricted
+  /// separately). Android/iOS native SDKs get theirs at build time (see
+  /// mobile/README.md "Google Maps setup"); only the web key is used from
+  /// Dart, to load the Maps JavaScript API. Unset or still the
+  /// `YOUR_..._API_KEY` placeholder reads as `null`.
+  static String? get googleMapsWebApiKey => _mapsKey('GOOGLE_MAPS_WEB_API_KEY');
+
+  static String? _mapsKey(String key) {
+    final value = _optional(key);
+    return (value == null || value.startsWith('YOUR_')) ? null : value;
+  }
+
   static String _require(String key) {
     final value = dotenv.env[key];
     if (value == null || value.isEmpty) {

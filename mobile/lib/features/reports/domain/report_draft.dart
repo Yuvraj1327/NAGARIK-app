@@ -23,4 +23,24 @@ class ReportDraft {
   /// Picked from the gallery or camera (Step 6). Capped at
   /// [ReportsRepository.maxImages] in the UI before submission is attempted.
   List<XFile> images = [];
+
+  /// Details step's two optional quick questions (Report Issue UI
+  /// recreation). The backend has no dedicated fields for them, so rather
+  /// than invent a schema change they're appended to the description the
+  /// backend already stores — see [submissionDescription]. `null` means
+  /// the person didn't answer, and nothing is appended for it.
+  String? anyoneHurt; // 'Yes' | 'No'
+  String? stillHappening; // 'Yes' | 'No' | 'Not sure'
+
+  /// The description actually sent to the backend: what the person typed,
+  /// plus a short, human-readable line for each quick question they
+  /// answered.
+  String get submissionDescription {
+    final extras = <String>[
+      if (anyoneHurt != null) 'Anyone hurt or in danger: $anyoneHurt',
+      if (stillHappening != null) 'Still happening: $stillHappening',
+    ];
+    if (extras.isEmpty) return description.trim();
+    return '${description.trim()}\n\n${extras.join('\n')}';
+  }
 }
