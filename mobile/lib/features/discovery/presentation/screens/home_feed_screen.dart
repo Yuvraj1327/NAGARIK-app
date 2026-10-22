@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/routing/app_drawer.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
@@ -16,6 +17,7 @@ import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_search_field.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
@@ -28,10 +30,10 @@ import 'package:nagarik/shared/widgets/skeleton.dart';
 /// — [LocationException] and [ApiException] both already carry one
 /// (`.message`), so this just picks it out instead of falling through to
 /// either exception type's less friendly `toString()`.
-String _nearbyErrorMessage(Object error) {
+String _nearbyErrorMessage(AppLocalizations l10n, Object error) {
   if (error is LocationException) return error.message;
   if (error is ApiException) return error.message;
-  return 'Could not find civic issues near you.';
+  return l10n.homeNearbyErrorFallback;
 }
 
 /// Home tab — Location Discovery & Home upgrade.
@@ -69,12 +71,13 @@ class HomeFeedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu_rounded),
-            tooltip: 'Menu',
+            tooltip: l10n.homeMenuTooltip,
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
@@ -82,7 +85,7 @@ class HomeFeedScreen extends ConsumerWidget {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Logo(size: 28),
+            const Logo(size: 36, transparent: true),
             const SizedBox(width: AppSpacing.sm),
             Text(
               'NAGARIK',
@@ -137,18 +140,19 @@ class _Greeting extends ConsumerWidget {
     final fullName = profileAsync.asData?.value.displayName;
     final firstName = fullName == null ? null : fullName.trim().split(RegExp(r'\s+')).first;
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          firstName != null && firstName.isNotEmpty ? 'Hello, $firstName 👋' : 'Hello 👋',
+          firstName != null && firstName.isNotEmpty ? l10n.homeGreetingNamed(firstName) : l10n.homeGreeting,
           style: textTheme.headlineMedium,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text("Let's make our city better together", style: textTheme.bodyMedium),
+        Text(l10n.homeTagline, style: textTheme.bodyMedium),
       ],
     );
   }
@@ -168,13 +172,14 @@ class _NearbyIssuesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final nearbyAsync = ref.watch(nearbyReportsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DiscoverySectionHeader(
-          title: 'Nearby Issues',
+          title: l10n.homeNearbyIssues,
           onSeeAll: () => context.go('/search?nearby=true'),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -186,14 +191,14 @@ class _NearbyIssuesSection extends ConsumerWidget {
               icon: error is ApiException && error.isNetworkError
                   ? Icons.wifi_off_outlined
                   : Icons.location_off_outlined,
-              message: _nearbyErrorMessage(error),
-              actionLabel: 'Retry',
+              message: _nearbyErrorMessage(l10n, error),
+              actionLabel: l10n.homeRetry,
               onAction: () => ref.invalidate(homeLocationProvider),
             ),
             data: (page) => page.items.isEmpty
-                ? const _InlineMessage(
+                ? _InlineMessage(
                     icon: Icons.explore_off_outlined,
-                    message: 'Nothing has been reported near you recently.',
+                    message: l10n.homeNearbyEmpty,
                   )
                 : ListView.separated(
                     scrollDirection: Axis.horizontal,
@@ -206,7 +211,7 @@ class _NearbyIssuesSection extends ConsumerWidget {
                         child: FadeSlideIn(
                           delay: Duration(milliseconds: 40 * index),
                           child: ReportCard(
-                            title: report.category.label,
+                            title: report.category.localizedLabel(l10n),
                             description: report.description,
                             category: report.category,
                             status: report.status,
@@ -231,7 +236,7 @@ class _NearbyIssuesSection extends ConsumerWidget {
           child: TextButton.icon(
             onPressed: () => context.go('/search?nearby=true&view=map'),
             icon: const Icon(Icons.map_outlined, size: 18),
-            label: const Text('View Nearby Reports on Map'),
+            label: Text(l10n.homeViewNearbyOnMap),
           ),
         ),
       ],
@@ -244,6 +249,7 @@ class _CategorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -251,7 +257,7 @@ class _CategorySection extends StatelessWidget {
         // category already selected; browsing existing reports by category
         // lives in Search & Discover.
         DiscoverySectionHeader(
-          title: 'Report an Issue',
+          title: l10n.homeReportAnIssue,
           onSeeAll: () => context.push('/report/create'),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -268,13 +274,14 @@ class _RecentReportsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final feedAsync = ref.watch(homeFeedProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DiscoverySectionHeader(
-          title: 'Recent Reports',
+          title: l10n.homeRecentReports,
           onSeeAll: () => context.go('/search?all=true'),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -285,14 +292,14 @@ class _RecentReportsSection extends ConsumerWidget {
             child: ErrorView.forError(
               error,
               onRetry: () => ref.invalidate(homeFeedProvider),
-              fallbackMessage: 'Could not load recent reports. Pull down to try again.',
+              fallbackMessage: l10n.homeRecentLoadError,
             ),
           ),
           data: (page) => page.items.isEmpty
               ? SizedBox(
                   height: 160,
                   child: EmptyView.noReports(
-                    actionLabel: 'Report an Issue',
+                    actionLabel: l10n.homeReportAnIssue,
                     onAction: () => context.push('/report/create'),
                   ),
                 )
@@ -310,13 +317,14 @@ class _RecentReportsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         for (var index = 0; index < reports.length; index++) ...[
           FadeSlideIn(
             delay: Duration(milliseconds: 40 * index),
             child: ReportCard(
-              title: reports[index].category.label,
+              title: reports[index].category.localizedLabel(l10n),
               description: reports[index].description,
               category: reports[index].category,
               status: reports[index].status,

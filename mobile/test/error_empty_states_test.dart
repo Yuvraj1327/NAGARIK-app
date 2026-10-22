@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,7 +13,9 @@ import 'package:nagarik/shared/widgets/error_view.dart';
 /// them (Home, Search, My Reports, Saved Reports, Report Detail, ...) stays
 /// correct without re-testing the same logic per screen.
 void main() {
-  Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+  Widget wrap(Widget child) => MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,home: Scaffold(body: child));
 
   group('ErrorView.forError', () {
     testWidgets('shows a connection-specific message and icon for a network failure', (

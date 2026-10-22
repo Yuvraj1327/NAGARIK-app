@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 
 /// The rounded, pill-shaped search field used by Home (as a tappable
 /// shortcut, [readOnly] + [onTap]) and Search & Discover (a real input).
@@ -12,7 +13,7 @@ class AppSearchField extends StatelessWidget {
   const AppSearchField({
     super.key,
     this.controller,
-    this.hintText = 'Search civic issues, locations…',
+    this.hintText,
     this.readOnly = false,
     this.onTap,
     this.onSubmitted,
@@ -20,7 +21,8 @@ class AppSearchField extends StatelessWidget {
   });
 
   final TextEditingController? controller;
-  final String hintText;
+  /// Null falls back to the localized default hint.
+  final String? hintText;
   final bool readOnly;
   final VoidCallback? onTap;
   final ValueChanged<String>? onSubmitted;
@@ -47,7 +49,7 @@ class AppSearchField extends StatelessWidget {
             ? const SizedBox.shrink()
             : IconButton(
                 icon: const Icon(Icons.close_rounded, size: 20),
-                tooltip: 'Clear',
+                tooltip: AppLocalizations.of(context).commonClear,
                 onPressed: onClear,
               ),
       );
@@ -60,7 +62,7 @@ class AppSearchField extends StatelessWidget {
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
-        hintText: hintText,
+        hintText: hintText ?? AppLocalizations.of(context).commonSearchHint,
         filled: true,
         fillColor: fill,
         prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary),

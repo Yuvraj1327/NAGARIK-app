@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report_marker.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
@@ -35,6 +37,7 @@ class ReportMarkerPreviewSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final reportAsync = ref.watch(reportByIdProvider(marker.id));
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     return SafeArea(
       child: Padding(
@@ -46,7 +49,7 @@ class ReportMarkerPreviewSheet extends ConsumerWidget {
             child: ErrorView.forError(
               error,
               onRetry: () => ref.invalidate(reportByIdProvider(marker.id)),
-              fallbackMessage: 'Could not load this report.',
+              fallbackMessage: l10n.repLoadFailed,
             ),
           ),
           data: (report) => Column(
@@ -58,7 +61,7 @@ class ReportMarkerPreviewSheet extends ConsumerWidget {
                   Icon(report.category.icon, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: Text(report.category.label, style: textTheme.titleMedium),
+                    child: Text(report.category.localizedLabel(l10n), style: textTheme.titleMedium),
                   ),
                   StatusBadge(status: report.status),
                 ],
@@ -85,7 +88,7 @@ class ReportMarkerPreviewSheet extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               AppButton(
-                label: 'View Full Details',
+                label: l10n.repViewFullDetails,
                 onPressed: () {
                   Navigator.of(context).pop();
                   context.push('/report/${report.id}');

@@ -13,6 +13,8 @@ class UserProfileResponse(BaseModel):
     # private) — never a raw Storage path, which wouldn't be fetchable by
     # the client anyway.
     avatar_url: str | None = None
+    # Optional contact number from `user_metadata.phone`; None if never set.
+    phone: str | None = None
 
 
 class AvatarUploadResponse(BaseModel):

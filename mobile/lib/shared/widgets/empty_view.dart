@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 
@@ -11,14 +12,18 @@ class EmptyView extends StatelessWidget {
   const EmptyView({
     super.key,
     required this.icon,
-    required this.title,
+    required String this.title,
     this.message,
     this.actionLabel,
     this.onAction,
-  });
+  }) : _kind = null;
 
   final IconData icon;
-  final String title;
+
+  /// Null only for the named constructors, which resolve localized copy in
+  /// [build] via [_kind].
+  final String? title;
+  final _EmptyKind? _kind;
   final String? message;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -29,14 +34,16 @@ class EmptyView extends StatelessWidget {
   /// (Final Feature Polish upgrade).
   const EmptyView.noReports({super.key, this.actionLabel, this.onAction})
       : icon = Icons.assignment_outlined,
-        title = 'No reports yet',
-        message = 'Reports submitted here will show up in this list.';
+        title = null,
+        message = null,
+        _kind = _EmptyKind.noReports;
 
   /// Saved Reports, empty.
   const EmptyView.noSavedReports({super.key})
       : icon = Icons.bookmark_border,
-        title = 'No saved reports yet',
-        message = 'Tap the bookmark icon on a report to save it here for later.',
+        title = null,
+        message = null,
+        _kind = _EmptyKind.noSavedReports,
         actionLabel = null,
         onAction = null;
 
@@ -44,22 +51,41 @@ class EmptyView extends StatelessWidget {
   /// no report was found within range.
   const EmptyView.noNearbyReports({super.key})
       : icon = Icons.explore_off_outlined,
-        title = 'No civic issues nearby',
-        message = 'Nothing has been reported near you recently.',
+        title = null,
+        message = null,
+        _kind = _EmptyKind.noNearbyReports,
         actionLabel = null,
         onAction = null;
 
   /// Search, after a search or filter combination matches nothing.
   const EmptyView.searchNoResults({super.key})
       : icon = Icons.search_off_outlined,
-        title = 'No matching reports',
-        message = 'Try a different keyword or loosen your filters.',
+        title = null,
+        message = null,
+        _kind = _EmptyKind.searchNoResults,
         actionLabel = null,
         onAction = null;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+    final (String resolvedTitle, String? resolvedMessage) = switch (_kind) {
+      _EmptyKind.noReports => (l10n.commonEmptyNoReportsTitle, l10n.commonEmptyNoReportsMessage),
+      _EmptyKind.noSavedReports => (
+          l10n.commonEmptyNoSavedTitle,
+          l10n.commonEmptyNoSavedMessage,
+        ),
+      _EmptyKind.noNearbyReports => (
+          l10n.commonEmptyNoNearbyTitle,
+          l10n.commonEmptyNoNearbyMessage,
+        ),
+      _EmptyKind.searchNoResults => (
+          l10n.commonEmptyNoMatchTitle,
+          l10n.commonEmptyNoMatchMessage,
+        ),
+      null => (title!, message),
+    };
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -79,14 +105,14 @@ class EmptyView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                title,
+                resolvedTitle,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              if (message != null) ...[
+              if (resolvedMessage != null) ...[
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  message!,
+                  resolvedMessage,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -102,3 +128,5 @@ class EmptyView extends StatelessWidget {
     );
   }
 }
+
+enum _EmptyKind { noReports, noSavedReports, noNearbyReports, searchNoResults }

@@ -5,6 +5,7 @@ class UserProfile {
     required this.email,
     this.fullName,
     this.avatarUrl,
+    this.phone,
   });
 
   final String id;
@@ -17,12 +18,17 @@ class UserProfile {
   /// when this is `null`.
   final String? avatarUrl;
 
+  /// Optional contact number (E.164, e.g. `+919876543210`) collected during
+  /// onboarding or edited in Edit Profile; `null` if never given.
+  final String? phone;
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id'] as String,
       email: json['email'] as String?,
       fullName: json['full_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
+      phone: json['phone'] as String?,
     );
   }
 
@@ -32,6 +38,12 @@ class UserProfile {
   String? get nameOrNull {
     final name = fullName?.trim();
     return name != null && name.isNotEmpty ? name : null;
+  }
+
+  /// The trimmed phone number, or `null` if none was given.
+  String? get phoneOrNull {
+    final value = phone?.trim();
+    return value != null && value.isNotEmpty ? value : null;
   }
 
   /// The name shown in the UI: the user's full name if they gave one at

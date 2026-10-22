@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
@@ -12,6 +13,7 @@ import 'package:nagarik/features/reports/domain/report_share.dart';
 import 'package:nagarik/features/reports/domain/report_timeline.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_location_map.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
@@ -41,16 +43,17 @@ class ReportDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final reportAsync = ref.watch(reportByIdProvider(reportId));
 
     return Scaffold(
       appBar: PrimaryAppBar(
-        title: 'Report Details',
+        title: l10n.detailTitle,
         actions: reportAsync.maybeWhen(
           data: (report) => [
             IconButton(
               icon: const Icon(Icons.share_outlined),
-              tooltip: 'Share',
+              tooltip: l10n.detailShare,
               onPressed: () => Share.share(
                 buildReportShareText(report),
                 subject: 'NAGARIK Civic Report',
@@ -62,11 +65,11 @@ class ReportDetailScreen extends ConsumerWidget {
         ),
       ),
       body: reportAsync.when(
-        loading: () => const LoadingView(message: 'Loading report…'),
+        loading: () => LoadingView(message: l10n.detailLoading),
         error: (error, stackTrace) => ErrorView.forError(
           error,
           onRetry: () => ref.invalidate(reportByIdProvider(reportId)),
-          fallbackMessage: 'Could not load this report. It may have been removed.',
+          fallbackMessage: l10n.detailLoadError,
         ),
         data: (report) => _ReportDetailBody(report: report),
       ),
@@ -114,6 +117,7 @@ class _SaveReportActionState extends ConsumerState<_SaveReportAction> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (_isSubmitting) {
       return const Padding(
         padding: EdgeInsets.all(AppSpacing.sm),
@@ -126,7 +130,7 @@ class _SaveReportActionState extends ConsumerState<_SaveReportAction> {
     }
     return IconButton(
       icon: Icon(widget.report.isSaved ? Icons.bookmark : Icons.bookmark_border),
-      tooltip: widget.report.isSaved ? 'Remove from saved reports' : 'Save report',
+      tooltip: widget.report.isSaved ? l10n.detailUnsaveReport : l10n.detailSaveReport,
       onPressed: _toggle,
     );
   }
@@ -140,6 +144,7 @@ class _ReportDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     return ResponsiveCenter(
       child: FadeSlideIn(
@@ -196,7 +201,7 @@ class _ReportDetailBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(report.category.label, style: textTheme.titleLarge),
+                  Text(report.category.localizedLabel(l10n), style: textTheme.titleLarge),
                   const SizedBox(height: 2),
                   Row(
                     children: [
@@ -226,14 +231,14 @@ class _ReportDetailBody extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         const Divider(),
         const SizedBox(height: AppSpacing.md),
-        _DetailRow(icon: Icons.location_city_outlined, label: 'City', value: report.city),
+        _DetailRow(icon: Icons.location_city_outlined, label: l10n.detailCity, value: report.city),
         const SizedBox(height: AppSpacing.sm),
-        _DetailRow(icon: Icons.pin_drop_outlined, label: 'PIN code', value: report.pinCode),
+        _DetailRow(icon: Icons.pin_drop_outlined, label: l10n.detailPinCode, value: report.pinCode),
         if (isValidCoordinate(report.latitude, report.longitude)) ...[
           const SizedBox(height: AppSpacing.sm),
           _DetailRow(
             icon: Icons.my_location_outlined,
-            label: 'Location',
+            label: l10n.detailLocation,
             value:
                 '${report.latitude!.toStringAsFixed(5)}, ${report.longitude!.toStringAsFixed(5)}',
           ),
@@ -249,19 +254,19 @@ class _ReportDetailBody extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         _DetailRow(
           icon: Icons.schedule_outlined,
-          label: 'Created',
+          label: l10n.detailCreated,
           value: formatReportTimestamp(report.createdAt),
         ),
         const SizedBox(height: AppSpacing.sm),
         _DetailRow(
           icon: Icons.update_outlined,
-          label: 'Updated',
+          label: l10n.detailUpdated,
           value: formatReportTimestamp(report.updatedAt),
         ),
         const SizedBox(height: AppSpacing.lg),
         const Divider(),
         const SizedBox(height: AppSpacing.md),
-        const SectionHeader(title: 'Status timeline'),
+        SectionHeader(title: l10n.detailStatusTimeline),
         const SizedBox(height: AppSpacing.sm),
         StatusTimeline(stages: timelineStagesForStatus(report.status)),
       ],

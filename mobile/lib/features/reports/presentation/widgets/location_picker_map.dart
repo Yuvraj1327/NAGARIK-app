@@ -5,9 +5,14 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:nagarik/core/maps/maps_availability.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/presentation/widgets/map_unavailable_view.dart';
 
+/// The pin is a draggable [Marker] (dragging it, tapping the map, searching
+/// or "locate me" all move it); [onPositionChanged] reports every new pin
+/// position. The map opens with the pin at [initialPosition].
+///
 /// Report Issue redesign: the "Place" step's map — a real `GoogleMap` (per
 /// explicit request; see `pubspec.yaml`'s comment on why this is a
 /// different map technology from `flutter_map`, which Search/Nearby keeps
@@ -65,21 +70,26 @@ class LocationPickerMap extends StatefulWidget {
 
 class _LocationPickerMapState extends State<LocationPickerMap> {
   final Completer<GoogleMapController> _controller = Completer<GoogleMapController>();
-  late LatLng _center = widget.initialPosition;
+  late LatLng _selected = widget.initialPosition;
   bool _isLocating = false;
 
-  /// Swallows the very first `onCameraIdle` (initial layout settling, not a
-  /// user pan) — see this class's doc comment above. Flips to `true` the
-  /// first time `onCameraIdle` fires and is never reset.
-  bool _hasHadFirstIdle = false;
+  /// Moves the pin to [target], recenters the camera and reports it.
+  Future<void> _selectAndShow(LatLng target) async {
+    setState(() => _selected = target);
+    widget.onPositionChanged(target);
+    final controller = await _controller.future;
+    await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
+  }
+
+  void _select(LatLng target) {
+    setState(() => _selected = target);
+    widget.onPositionChanged(target);
+  }
 
   @override
   void initState() {
     super.initState();
-    widget.controller?._moveTo = (target) async {
-      final controller = await _controller.future;
-      await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
-    };
+    widget.controller?._moveTo = _selectAndShow;
   }
 
   @override
@@ -88,24 +98,14 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
     super.dispose();
   }
 
-  void _onCameraIdle() {
-    if (!_hasHadFirstIdle) {
-      _hasHadFirstIdle = true;
-      return;
-    }
-    widget.onPositionChanged(_center);
-  }
-
   Future<void> _useCurrentLocation() async {
     setState(() => _isLocating = true);
+    final settingsLabel = AppLocalizations.of(context).repSettings;
     try {
       final position = await widget.locationService.getCurrentPosition();
       final target = LatLng(position.latitude, position.longitude);
-      final controller = await _controller.future;
-      await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 16));
-      // `onCameraIdle` fires once the animated pan above settles and
-      // reports the new center back through `onPositionChanged` — no need
-      // to call it a second time here.
+      if (!mounted) return;
+      await _selectAndShow(target);
     } on LocationException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,10 +114,10 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
           // Permanently denied / services off can only be fixed in OS
           // settings — offer a direct way there instead of a dead end.
           action: error.needsAppSettings
-              ? SnackBarAction(label: 'Settings', onPressed: widget.locationService.openAppSettings)
+              ? SnackBarAction(label: settingsLabel, onPressed: widget.locationService.openAppSettings)
               : error.needsLocationServices
                   ? SnackBarAction(
-                      label: 'Settings',
+                      label: settingsLabel,
                       onPressed: widget.locationService.openLocationSettings,
                     )
                   : null,
@@ -144,28 +144,20 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
           alignment: Alignment.center,
           children: [
             GoogleMap(
-              initialCameraPosition: CameraPosition(target: _center, zoom: 15),
+              initialCameraPosition: CameraPosition(target: _selected, zoom: 15),
               onMapCreated: _controller.complete,
-              onCameraMove: (position) => _center = position.target,
-              onCameraIdle: _onCameraIdle,
+              onTap: _select,
+              markers: {
+                Marker(
+                  markerId: const MarkerId('selected'),
+                  position: _selected,
+                  draggable: true,
+                  onDragEnd: _select,
+                ),
+              },
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
               mapToolbarEnabled: false,
-            ),
-            // The fixed center pin — nudged up by half its height so the
-            // glyph's visual tip (not its bounding box's center) lands on
-            // the exact map center the map reports back as the chosen
-            // point.
-            IgnorePointer(
-              child: Transform.translate(
-                offset: const Offset(0, -18),
-                child: const Icon(
-                  Icons.location_on,
-                  size: 40,
-                  color: AppColors.primary,
-                  shadows: [Shadow(blurRadius: 6, color: Color(0x5512213A))],
-                ),
-              ),
             ),
             Positioned(
               left: 12,
@@ -173,13 +165,13 @@ class _LocationPickerMapState extends State<LocationPickerMap> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: context.surfaceColor,
                   borderRadius: BorderRadius.circular(999),
-                  boxShadow: const [BoxShadow(blurRadius: 6, color: Color(0x2212213A))],
+                  boxShadow: const [BoxShadow(blurRadius: 6, color: Color(0x220F1F3D))],
                 ),
-                child: const Text(
-                  'Drag the map to adjust',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                child: Text(
+                  AppLocalizations.of(context).repDragPin,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.textPrimaryColor),
                 ),
               ),
             ),
@@ -204,10 +196,10 @@ class _LocateMeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surface,
+      color: context.surfaceColor,
       shape: const CircleBorder(),
       elevation: 3,
-      shadowColor: const Color(0x3312213A),
+      shadowColor: const Color(0x330F1F3D),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: isLoading ? null : onPressed,
@@ -219,7 +211,7 @@ class _LocateMeButton extends StatelessWidget {
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.primary),
                 )
-              : const Icon(Icons.my_location, size: 18, color: AppColors.primary),
+              : Icon(Icons.my_location, size: 18, color: context.accentColor),
         ),
       ),
     );

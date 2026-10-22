@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,7 +43,9 @@ Widget _home(UserProfile profile, {Future<UserProfile>? pending}) {
         ),
       ),
     ],
-    child: MaterialApp(theme: AppTheme.light, home: const HomeFeedScreen()),
+    child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,theme: AppTheme.light, home: const HomeFeedScreen()),
   );
 }
 
@@ -85,6 +88,8 @@ void main() {
     testWidgets('tiles are no taller than wide, and all the same size', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: CategoryGrid(onCategoryTap: (_) {})),
         ),
       );
@@ -107,7 +112,9 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         ProviderScope(
-          child: MaterialApp(theme: AppTheme.light, home: const SearchScreen()),
+          child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,theme: AppTheme.light, home: const SearchScreen()),
         ),
       );
       await tester.pumpAndSettle();

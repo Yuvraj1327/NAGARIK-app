@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
@@ -45,6 +46,7 @@ class AppDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final profile = ref.watch(currentUserProfileProvider).asData?.value;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -64,68 +66,68 @@ class AppDrawer extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _SectionLabel('MAIN'),
+                  _SectionLabel(l10n.navDrawerMain),
                   _DrawerItem(
                     icon: Icons.home_outlined,
-                    label: 'Home',
+                    label: l10n.navHome,
                     active: activeRoute == '/home',
                     onTap: () => _go(context, '/home'),
                   ),
                   _DrawerItem(
                     icon: Icons.search_rounded,
-                    label: 'Search & Discover',
+                    label: l10n.navDrawerSearchDiscover,
                     active: activeRoute == '/search',
                     onTap: () => _go(context, '/search'),
                   ),
                   _DrawerItem(
                     icon: Icons.assignment_outlined,
-                    label: 'My Reports',
+                    label: l10n.navMyReports,
                     active: activeRoute == '/my-reports',
                     onTap: () => _go(context, '/my-reports'),
                   ),
                   _DrawerItem(
                     icon: Icons.bookmark_border_rounded,
-                    label: 'Saved Reports',
+                    label: l10n.navDrawerSavedReports,
                     onTap: () => _push(context, '/profile/saved-reports'),
                   ),
                   _DrawerItem(
                     icon: Icons.add_alert_outlined,
-                    label: 'Report Issue',
+                    label: l10n.navDrawerReportIssue,
                     onTap: () => _push(context, '/report/create'),
                   ),
                   _DrawerItem(
                     icon: Icons.map_outlined,
-                    label: 'Map & Nearby',
+                    label: l10n.navDrawerMapNearby,
                     // Lands on Search already switched to "Near me" and the
                     // Map view — see `search_screen.dart`'s `initialView`
                     // and `app_router.dart`'s `/search` route.
                     onTap: () => _go(context, '/search?nearby=true&view=map'),
                   ),
-                  const _SectionLabel('SUPPORT'),
+                  _SectionLabel(l10n.navDrawerSupport),
                   _DrawerItem(
                     icon: Icons.settings_outlined,
-                    label: 'Settings',
+                    label: l10n.navDrawerSettings,
                     onTap: () => _push(context, '/settings'),
                   ),
                   _DrawerItem(
                     icon: Icons.help_outline_rounded,
-                    label: 'Help & Support',
+                    label: l10n.navDrawerHelpSupport,
                     onTap: () => _push(context, '/help'),
                   ),
                   _DrawerItem(
                     icon: Icons.info_outline_rounded,
-                    label: 'About NAGARIK',
+                    label: l10n.navDrawerAbout,
                     onTap: () => _push(context, '/about'),
                   ),
-                  const _SectionLabel('LEGAL'),
+                  _SectionLabel(l10n.navDrawerLegal),
                   _DrawerItem(
                     icon: Icons.privacy_tip_outlined,
-                    label: 'Privacy Policy',
+                    label: l10n.navDrawerPrivacy,
                     onTap: () => _push(context, '/legal/privacy'),
                   ),
                   _DrawerItem(
                     icon: Icons.description_outlined,
-                    label: 'Terms & Conditions',
+                    label: l10n.navDrawerTerms,
                     onTap: () => _push(context, '/legal/terms'),
                   ),
                 ],
@@ -139,7 +141,7 @@ class AppDrawer extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: _DrawerItem(
                 icon: Icons.logout_rounded,
-                label: 'Logout',
+                label: l10n.navDrawerLogout,
                 destructive: true,
                 // Confirm BEFORE closing the drawer: popping first leaves this
                 // context unmounted, so the dialog could never be shown.
@@ -172,14 +174,20 @@ class _DrawerHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primaryDark, AppColors.primary, AppColors.primaryBright],
+          // Logo-blue header (dark mode starts from a deeper navy so it blends
+          // into the black drawer). The logo sits on a translucent tile below
+          // so its blue shield stays visible against the blue.
+          colors: isDark
+              ? const [Color(0xFF071430), AppColors.primaryDark, AppColors.primary]
+              : const [AppColors.primaryDark, AppColors.primary, AppColors.primaryBright],
         ),
       ),
       child: SafeArea(
@@ -196,7 +204,14 @@ class _DrawerHeader extends StatelessWidget {
                 // is a separate thing from the app's identity.
                 Row(
                   children: [
-                    const Logo(size: 34),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      child: const Logo(size: 40, transparent: true),
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'NAGARIK',
@@ -278,7 +293,7 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.textSecondary,
+              color: context.textSecondaryColor,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.2,
             ),
@@ -306,13 +321,15 @@ class _DrawerItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
-    final color = destructive ? AppColors.error : (active ? AppColors.primary : baseColor);
-    final chevronColor = destructive ? AppColors.error : AppColors.textDisabled;
+    final color = destructive ? AppColors.error : (active ? context.accentColor : baseColor);
+    final chevronColor = destructive
+        ? AppColors.error
+        : (isDark ? AppColors.darkTextDisabled : AppColors.textDisabled);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
-        color: active ? AppColors.primaryLight : Colors.transparent,
+        color: active ? context.tintColor : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadius.lg),

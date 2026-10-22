@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// The one text-field widget the whole app should use, so labels, borders,
 /// and error styling stay consistent (driven by `AppTheme`'s
@@ -22,6 +23,7 @@ class AppTextField extends StatelessWidget {
     this.focusNode,
     this.dense = false,
     this.showCounter = true,
+    this.inputFormatters,
   });
 
   final String label;
@@ -58,6 +60,9 @@ class AppTextField extends StatelessWidget {
   /// shows — the length is still enforced, it just doesn't take a line.
   final bool showCounter;
 
+  /// Optional input filters (e.g. digits only for a phone number).
+  final List<TextInputFormatter>? inputFormatters;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
@@ -69,6 +74,7 @@ class AppTextField extends StatelessWidget {
       autovalidateMode: autovalidateMode,
       maxLines: obscureText ? 1 : maxLines,
       maxLength: maxLength,
+      inputFormatters: inputFormatters,
       textInputAction: textInputAction,
       onChanged: onChanged,
       enabled: enabled,

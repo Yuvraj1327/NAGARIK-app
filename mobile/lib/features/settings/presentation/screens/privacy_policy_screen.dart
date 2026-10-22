@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/static_content_screen.dart';
 
 /// Profile/Settings -> Privacy Policy.
@@ -15,42 +16,32 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const StaticContentScreen(
-      title: 'Privacy Policy',
+    final l10n = AppLocalizations.of(context);
+    return StaticContentScreen(
+      title: l10n.legalPrivacyPolicy,
       sections: [
         StaticContentSection(
-          body: 'This is placeholder text describing how NAGARIK handles your '
-              'information. Replace it with your reviewed privacy policy before '
-              'a real release.',
+          body: l10n.legalPrivacyIntro,
         ),
         StaticContentSection(
-          heading: 'What we collect',
-          body: 'Your name and email address (when you create an account), and '
-              'the reports you submit — a category, description, city and PIN '
-              'code, optional photos, and location coordinates when you choose '
-              'to attach one.',
+          heading: l10n.legalPrivacyCollectHeading,
+          body: l10n.legalPrivacyCollectBody,
         ),
         StaticContentSection(
-          heading: 'How we use it',
-          body: 'To show your submitted reports back to you, to let other '
-              'citizens browse and search civic issues in their area, and to '
-              'track a report\'s status as it moves from Submitted to In '
-              'Review to Resolved.',
+          heading: l10n.legalPrivacyUseHeading,
+          body: l10n.legalPrivacyUseBody,
         ),
         StaticContentSection(
-          heading: 'Where it is stored',
-          body: 'Account and report data is stored with Supabase; photos are '
-              'stored in a private file bucket and are never publicly '
-              'browsable by their raw address.',
+          heading: l10n.legalPrivacyStoredHeading,
+          body: l10n.legalPrivacyStoredBody,
         ),
         StaticContentSection(
-          heading: 'Sharing',
-          body: 'We do not sell your personal information to third parties.',
+          heading: l10n.legalPrivacySharingHeading,
+          body: l10n.legalPrivacySharingBody,
         ),
         StaticContentSection(
-          heading: 'Contact',
-          body: 'Questions about this policy can be sent to '
-              'privacy@nagarik.example.',
+          heading: l10n.legalContactHeading,
+          body: l10n.legalPrivacyContactBody,
         ),
       ],
     );

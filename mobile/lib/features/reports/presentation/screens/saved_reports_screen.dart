@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
@@ -32,10 +34,11 @@ class SavedReportsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final savedReportsAsync = ref.watch(savedReportsProvider);
 
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'Saved Reports'),
+      appBar: PrimaryAppBar(title: l10n.navDrawerSavedReports),
       body: RefreshIndicator(
         onRefresh: () => _onRefresh(ref),
         child: ResponsiveCenter(
@@ -52,7 +55,7 @@ class SavedReportsScreen extends ConsumerWidget {
                 child: ErrorView.forError(
                   error,
                   onRetry: () => ref.invalidate(savedReportsProvider),
-                  fallbackMessage: 'Could not load saved reports. Pull down to try again.',
+                  fallbackMessage: l10n.listSavedLoadError,
                 ),
               ),
             ],
@@ -105,6 +108,7 @@ class _SavedReportCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     return Dismissible(
       key: ValueKey(report.id),
       direction: DismissDirection.endToStart,
@@ -124,7 +128,7 @@ class _SavedReportCard extends ConsumerWidget {
         child: const Icon(Icons.bookmark_remove_outlined, color: AppColors.error),
       ),
       child: ReportCard(
-        title: report.category.label,
+        title: report.category.localizedLabel(l10n),
         description: report.description,
         category: report.category,
         status: report.status,

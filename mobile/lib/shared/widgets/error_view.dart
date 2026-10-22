@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 
@@ -20,6 +21,7 @@ class ErrorView extends StatelessWidget {
     required this.message,
     this.onRetry,
     this.icon = Icons.error_outline,
+    this.isNetworkError = false,
   });
 
   /// Builds the message/icon from [error] itself: a network failure (no
@@ -31,13 +33,14 @@ class ErrorView extends StatelessWidget {
     Object error, {
     Key? key,
     VoidCallback? onRetry,
-    String fallbackMessage = 'Something went wrong. Please try again.',
+    String? fallbackMessage,
   }) {
     if (error is ApiException && error.isNetworkError) {
       return ErrorView(
         key: key,
         icon: Icons.wifi_off_outlined,
-        message: "Can't reach NAGARIK. Check your internet connection and try again.",
+        message: null,
+        isNetworkError: true,
         onRetry: onRetry,
       );
     }
@@ -49,12 +52,17 @@ class ErrorView extends StatelessWidget {
     );
   }
 
-  final String message;
+  /// Null means "use the localized default" (network or generic message).
+  final String? message;
   final VoidCallback? onRetry;
   final IconData icon;
+  final bool isNetworkError;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final text =
+        message ?? (isNetworkError ? l10n.commonNetworkError : l10n.commonGenericError);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -74,13 +82,13 @@ class ErrorView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                message,
+                text,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               if (onRetry != null) ...[
                 const SizedBox(height: AppSpacing.md),
-                AppButton(label: 'Retry', onPressed: onRetry, expand: false),
+                AppButton(label: l10n.commonRetry, onPressed: onRetry, expand: false),
               ],
             ],
           ),

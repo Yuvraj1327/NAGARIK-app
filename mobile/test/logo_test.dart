@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,7 +10,9 @@ import 'package:nagarik/shared/widgets/logo.dart';
 /// renders the mark through, so it's worth pinning its asset path and
 /// square-box sizing directly, plus [SplashScreen]'s use of it.
 void main() {
-  Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+  Widget wrap(Widget child) => MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,home: Scaffold(body: child));
 
   group('Logo', () {
     testWidgets('renders the official asset at the requested square size', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 
@@ -46,6 +47,7 @@ class _CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imagePath = category.imagePath;
+    final l10n = AppLocalizations.of(context);
 
     // NAGARIK Theme upgrade: the uploaded category photo fills the top of
     // the tile via `Expanded` + `BoxFit.cover` — this fits whatever height
@@ -76,14 +78,20 @@ class _CategoryTile extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: AppSpacing.xs),
             child: Text(
-              category.label,
+              category.localizedLabel(l10n),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .labelLarge
-                  ?.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
+              // `labelLarge` is white (button text), which is invisible on the
+              // card surface — so the color is set explicitly per brightness.
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: 0.1,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary,
+                  ),
             ),
           ),
         ],

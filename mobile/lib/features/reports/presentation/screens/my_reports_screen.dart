@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/constants/report_status.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/routing/app_drawer.dart';
@@ -10,6 +11,7 @@ import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/edit_report_sheet.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
@@ -63,20 +65,20 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
   }
 
   Future<void> _delete(Report report) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete report?'),
-        content:
-            const Text('This permanently deletes the report and its photos.'),
+        title: Text(l10n.listDeleteTitle),
+        content: Text(l10n.listDeleteMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.listCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(l10n.listDelete),
           ),
         ],
       ),
@@ -92,17 +94,18 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(error is ApiException
             ? error.message
-            : 'Could not delete the report.'),
+            : l10n.listDeleteError),
       ));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final myReportsAsync = ref.watch(myReportsProvider);
 
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'My Reports'),
+      appBar: PrimaryAppBar(title: l10n.navMyReports),
       drawer: const AppDrawer(activeRoute: '/my-reports'),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
@@ -122,7 +125,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                 child: ErrorView.forError(
                   error,
                   onRetry: () => ref.invalidate(myReportsProvider),
-                  fallbackMessage: 'Could not load your reports. Pull down to try again.',
+                  fallbackMessage: l10n.listMyLoadError,
                 ),
               ),
             ],
@@ -134,7 +137,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                 children: [
                   const SizedBox(height: 100),
                   EmptyView.noReports(
-                    actionLabel: 'Report an Issue',
+                    actionLabel: l10n.homeReportAnIssue,
                     onAction: () => context.push('/report/create'),
                   ),
                 ],
@@ -166,8 +169,10 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                             const SizedBox(height: 80),
                             EmptyView(
                               icon: Icons.filter_alt_off_outlined,
-                              title: 'No ${_filter?.label ?? 'matching'} reports',
-                              message: 'Try a different filter above.',
+                              title: _filter == null
+                                  ? l10n.listNoMatchingReports
+                                  : l10n.listNoStatusReports(_filter!.localizedLabel(l10n)),
+                              message: l10n.listTryDifferentFilter,
                             ),
                           ],
                         )
@@ -184,7 +189,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                               child: Stack(
                                 children: [
                                   ReportCard(
-                                title: report.category.label,
+                                title: report.category.localizedLabel(l10n),
                                 description: report.description,
                                 category: report.category,
                                 status: report.status,
@@ -200,12 +205,12 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                                     top: 0,
                                     right: 0,
                                     child: PopupMenuButton<String>(
-                                      tooltip: 'Report options',
+                                      tooltip: l10n.listReportOptions,
                                       onSelected: (value) =>
                                           value == 'edit' ? _edit(report) : _delete(report),
-                                      itemBuilder: (context) => const [
-                                        PopupMenuItem(value: 'edit', child: Text('Edit Report')),
-                                        PopupMenuItem(value: 'delete', child: Text('Delete Report')),
+                                      itemBuilder: (context) => [
+                                        PopupMenuItem(value: 'edit', child: Text(l10n.listEditReport)),
+                                        PopupMenuItem(value: 'delete', child: Text(l10n.listDeleteReport)),
                                       ],
                                     ),
                                   ),
@@ -247,13 +252,14 @@ class _StatusFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
       child: Row(
         children: [
           _FilterChip(
-            label: 'All',
+            label: l10n.searchAll,
             count: _countFor(null),
             selected: selected == null,
             onTap: () => onSelected(null),
@@ -261,7 +267,7 @@ class _StatusFilterBar extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           for (final status in ReportStatus.values) ...[
             _FilterChip(
-              label: status.label,
+              label: status.localizedLabel(l10n),
               count: _countFor(status),
               selected: selected == status,
               onTap: () => onSelected(status),

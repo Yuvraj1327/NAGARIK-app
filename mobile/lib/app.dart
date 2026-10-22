@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:nagarik/core/config/env.dart';
+import 'package:nagarik/core/localization/language_preference.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/core/maps/maps_availability.dart';
 import 'package:nagarik/core/maps/maps_loader.dart';
 import 'package:nagarik/core/network/supabase_client_provider.dart';
@@ -48,6 +51,7 @@ class _NagarikAppState extends ConsumerState<NagarikApp> {
     await Env.load();
     MapsAvailability.isAvailable = await ensureGoogleMapsLoaded(Env.googleMapsWebApiKey);
     await initSupabase();
+    await ref.read(languageProvider.notifier).load();
 
     // Onboarding redesign: a first-time, signed-out launch starts on
     // `/onboarding` instead of `/welcome`. Already-signed-in users never
@@ -83,6 +87,7 @@ class _NagarikAppState extends ConsumerState<NagarikApp> {
     // remains the app's primary/default design — see
     // `theme_preference.dart` for why that's the fallback here too.
     final themePreference = ref.watch(themePreferenceProvider);
+    final language = ref.watch(languageProvider);
 
     return MaterialApp.router(
       title: 'NAGARIK',
@@ -90,6 +95,14 @@ class _NagarikAppState extends ConsumerState<NagarikApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themePreference.themeMode,
+      locale: language.locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: router,
     );
   }

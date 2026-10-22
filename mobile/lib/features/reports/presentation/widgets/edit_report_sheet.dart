@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:nagarik/core/constants/report_category.dart';
 import 'package:nagarik/core/network/api_exception.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/features/reports/data/reports_repository.dart';
 import 'package:nagarik/features/reports/domain/report.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
@@ -53,9 +54,10 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
   }
 
   Future<void> _addPhotos() async {
+    final l10n = AppLocalizations.of(context);
     final slots = ReportsRepository.maxImages - _photoCount;
     if (slots <= 0) {
-      _message('You can attach up to ${ReportsRepository.maxImages} photos.');
+      _message(l10n.repPhotoLimit(ReportsRepository.maxImages));
       return;
     }
     try {
@@ -64,11 +66,12 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
         setState(() => _added.addAll(picked.take(slots)));
       }
     } catch (_) {
-      _message('Could not open the photo library. Please try again.');
+      _message(l10n.repPhotoLibraryFailed);
     }
   }
 
   Future<void> _useCurrentLocation() async {
+    final l10n = AppLocalizations.of(context);
     try {
       final position = await ref.read(locationServiceProvider).getCurrentPosition();
       if (!mounted) return;
@@ -78,11 +81,12 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
         _locationChanged = true;
       });
     } catch (_) {
-      _message('Could not get your current location.');
+      _message(l10n.repLocationFailed);
     }
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     try {
@@ -100,7 +104,7 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {
-      _message(error is ApiException ? error.message : 'Could not update your report.');
+      _message(error is ApiException ? error.message : l10n.repUpdateFailed);
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -108,6 +112,7 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
   @override
   Widget build(BuildContext context) {
     final report = widget.report;
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
@@ -117,14 +122,14 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Edit report', style: Theme.of(context).textTheme.titleLarge),
+              Text(l10n.repEditTitle, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<ReportCategory>(
                 initialValue: _category,
-                decoration: const InputDecoration(labelText: 'Category'),
+                decoration: InputDecoration(labelText: l10n.repCategory),
                 items: [
                   for (final c in ReportCategory.values)
-                    DropdownMenuItem(value: c, child: Text(c.label)),
+                    DropdownMenuItem(value: c, child: Text(c.localizedLabel(l10n))),
                 ],
                 onChanged: (c) => setState(() => _category = c ?? _category),
               ),
@@ -133,43 +138,44 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
                 controller: _description,
                 maxLines: 4,
                 maxLength: 2000,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: InputDecoration(labelText: l10n.repDescription),
                 validator: (v) => (v ?? '').trim().length < 10
-                    ? 'Describe the issue in at least 10 characters.'
+                    ? l10n.repDescMin10
                     : null,
               ),
               TextFormField(
                 controller: _city,
                 maxLength: 100,
-                decoration: const InputDecoration(labelText: 'City'),
-                validator: (v) => (v ?? '').trim().isEmpty ? 'Enter a city.' : null,
+                decoration: InputDecoration(labelText: l10n.repCity),
+                validator: (v) => (v ?? '').trim().isEmpty ? l10n.repEnterCity : null,
               ),
               TextFormField(
                 controller: _pin,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                decoration: const InputDecoration(labelText: 'PIN code'),
+                decoration: InputDecoration(labelText: l10n.repPinCode),
                 validator: (v) =>
-                    RegExp(r'^[0-9]{6}$').hasMatch((v ?? '').trim()) ? null : 'Enter a 6-digit PIN code.',
+                    RegExp(r'^[0-9]{6}$').hasMatch((v ?? '').trim()) ? null : l10n.repEnterPin,
               ),
               Row(
                 children: [
                   Expanded(
                     child: Text(
                       _lat == null
-                          ? 'No map location'
-                          : 'Location: ${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
+                          ? l10n.repNoMapLocation
+                          : l10n.repLocationValue(
+                              _lat!.toStringAsFixed(4), _lng!.toStringAsFixed(4)),
                     ),
                   ),
                   TextButton.icon(
                     onPressed: _saving ? null : _useCurrentLocation,
                     icon: const Icon(Icons.my_location),
-                    label: const Text('Use current'),
+                    label: Text(l10n.repUseCurrent),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
-              Text('Photos ($_photoCount/${ReportsRepository.maxImages})',
+              Text(l10n.repPhotosHeader(_photoCount, ReportsRepository.maxImages),
                   style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
@@ -191,7 +197,7 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
                     OutlinedButton.icon(
                       onPressed: _saving ? null : _addPhotos,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: const Text('Add'),
+                      label: Text(l10n.repAdd),
                     ),
                 ],
               ),
@@ -203,7 +209,7 @@ class _EditReportSheetState extends ConsumerState<EditReportSheet> {
                   child: _saving
                       ? const SizedBox(
                           height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save changes'),
+                      : Text(l10n.repSaveChanges),
                 ),
               ),
             ],

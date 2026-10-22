@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,7 +12,9 @@ import 'package:nagarik/shared/widgets/profile_avatar.dart';
 /// widget test, and the widget's own `errorWidget` already falls back to
 /// the same initial-letter avatar tested below.
 void main() {
-  Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+  Widget wrap(Widget child) => MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,home: Scaffold(body: child));
 
   testWidgets('shows the initial-letter avatar when there is no photo', (tester) async {
     await tester.pumpWidget(

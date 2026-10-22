@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
@@ -35,6 +36,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _isSubmitting = false;
 
   Future<void> _handleSignup() async {
+    final l10n = AppLocalizations.of(context);
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isSubmitting = true);
@@ -51,8 +53,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         // Email confirmation is required by this Supabase project's Auth
         // settings — there's no active session yet.
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created. Check your email to confirm before logging in.'),
+          SnackBar(
+            content: Text(l10n.authAccountCreated),
           ),
         );
         context.pop();
@@ -63,7 +65,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again.')),
+        SnackBar(content: Text(l10n.authErrorGeneric)),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -75,6 +77,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     // NAGARIK Theme upgrade: same hero banner as Login, shorter since
     // Signup's form has more fields to fit above the fold.
     final heroHeight = (MediaQuery.of(context).size.height * 0.26).clamp(170.0, 260.0);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -127,16 +130,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             delay: const Duration(milliseconds: 80),
                             child: Column(
                               children: [
-                                const Center(child: Logo(size: 48)),
+                                const Center(child: Logo(size: 68, transparent: true)),
                                 const SizedBox(height: AppSpacing.sm),
                                 Text(
-                                  'Create your account',
+                                  l10n.authCreateTitle,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.headlineSmall,
                                 ),
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(
-                                  'Join NAGARIK to report and track civic issues.',
+                                  l10n.authCreateSubtitle,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
@@ -147,12 +150,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 120),
                             child: AppTextField(
-                              label: 'Full name',
+                              label: l10n.authFullName,
                               controller: _nameController,
                               prefixIcon: Icons.person_outline,
                               textInputAction: TextInputAction.next,
                               validator: (value) => (value == null || value.trim().isEmpty)
-                                  ? 'Name is required.'
+                                  ? l10n.authNameRequired
                                   : null,
                             ),
                           ),
@@ -160,16 +163,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 150),
                             child: AppTextField(
-                              label: 'Email',
+                              label: l10n.authEmail,
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               prefixIcon: Icons.email_outlined,
                               textInputAction: TextInputAction.next,
                               validator: (value) {
                                 final email = value?.trim() ?? '';
-                                if (email.isEmpty) return 'Email is required.';
+                                if (email.isEmpty) return l10n.authEmailRequired;
                                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                                  return 'Enter a valid email address.';
+                                  return l10n.authEmailInvalid;
                                 }
                                 return null;
                               },
@@ -179,14 +182,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 180),
                             child: AppTextField(
-                              label: 'Password',
+                              label: l10n.authPassword,
                               controller: _passwordController,
                               obscureText: true,
                               prefixIcon: Icons.lock_outline,
                               textInputAction: TextInputAction.next,
                               validator: (value) {
                                 if (value == null || value.length < 6) {
-                                  return 'Password must be at least 6 characters.';
+                                  return l10n.authPasswordTooShort;
                                 }
                                 return null;
                               },
@@ -196,14 +199,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 210),
                             child: AppTextField(
-                              label: 'Confirm password',
+                              label: l10n.authConfirmPassword,
                               controller: _confirmController,
                               obscureText: true,
                               prefixIcon: Icons.lock_outline,
                               textInputAction: TextInputAction.done,
                               validator: (value) {
                                 if (value != _passwordController.text) {
-                                  return 'Passwords do not match.';
+                                  return l10n.authPasswordsMismatch;
                                 }
                                 return null;
                               },
@@ -213,7 +216,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 250),
                             child: AppButton(
-                              label: 'Create account',
+                              label: l10n.authCreateAccount,
                               isLoading: _isSubmitting,
                               onPressed: _handleSignup,
                             ),
@@ -224,10 +227,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('Already have an account?'),
+                                Text(l10n.authHaveAccount),
                                 TextButton(
                                   onPressed: () => context.pop(),
-                                  child: const Text('Log in'),
+                                  child: Text(l10n.authLogIn),
                                 ),
                               ],
                             ),

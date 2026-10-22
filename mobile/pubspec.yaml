@@ -11,6 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # -- Localization (English / Hindi / Marathi): Flutter's own gen-l10n
+  #    toolchain — ARB files in lib/l10n generate `AppLocalizations`. --
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+
   # -- Supabase Auth (Flutter talks to Supabase Auth directly; see
   #    docs/ARCHITECTURE.md for the full auth-token flow decision) --
   supabase_flutter: ^2.8.0
@@ -127,12 +133,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - .env
     # Official Logo upgrade: the one, exact NAGARIK logo file — see
     # lib/shared/widgets/logo.dart, the single reusable widget every screen
     # uses to display it.
     - assets/images/nagarik_logo.png
+    # Same logo, background removed and tightly cropped — Home app bar and
+    # drawer (`Logo(transparent: true)`).
+    - assets/images/nagarik_logo_transparent.png
     # NAGARIK Theme upgrade: category photos (Home → Explore by Category
     # and Report Issue → Category selection — see ReportCategory.imagePath
     # in core/constants/report_category.dart) and the Login/Signup hero

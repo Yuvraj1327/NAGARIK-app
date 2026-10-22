@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,6 +10,8 @@ void main() {
     var tapped = false;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: AppButton(label: 'Submit', onPressed: () => tapped = true),
         ),
@@ -23,6 +26,8 @@ void main() {
   testWidgets('EmptyView shows its title and message', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: EmptyView(
             icon: Icons.inbox_outlined,

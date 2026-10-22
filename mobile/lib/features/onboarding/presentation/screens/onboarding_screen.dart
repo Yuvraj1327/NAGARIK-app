@@ -9,6 +9,8 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/core/theme/theme_preference.dart';
 import 'package:nagarik/features/onboarding/domain/age_group.dart';
 import 'package:nagarik/features/onboarding/domain/onboarding_draft.dart';
+import 'package:nagarik/core/localization/language_preference.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/features/onboarding/domain/onboarding_language.dart';
 import 'package:nagarik/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_step_indicator.dart';
@@ -78,7 +80,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final digits = _draft.phoneNumber.trim();
       if (digits.isNotEmpty) {
         if (digits.length != 10) {
-          setState(() => _phoneError = 'Enter a 10-digit mobile number, or skip this step.');
+          setState(() => _phoneError = AppLocalizations.of(context).onbPhoneError);
           return;
         }
         await onboarding.setPendingPhoneNumber('+91$digits');
@@ -119,8 +121,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case 1:
         return _LanguageStep(
           key: const ValueKey(1),
-          selected: _draft.language ?? OnboardingLanguage.english,
-          onSelected: (language) => setState(() => _draft.language = language),
+          selected: ref.watch(languageProvider),
+          onSelected: (language) {
+            setState(() => _draft.language = language);
+            // Applies (and persists) immediately so the rest of the
+            // onboarding flow is already shown in the chosen language.
+            ref.read(languageProvider.notifier).setLanguage(language);
+          },
         );
       case 2:
         return const _AboutStep(key: ValueKey(2));
@@ -143,21 +150,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       default:
         return _PreferencesStep(
           key: const ValueKey(7),
-          language: _draft.language ?? OnboardingLanguage.english,
+          language: ref.watch(languageProvider),
           onEditLanguage: () => _editStep(1),
         );
     }
   }
 
   Widget _buildBottomBar() {
+    final l10n = AppLocalizations.of(context);
     if (_currentStep == 4) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PillButton(label: "Yes, I'm 18 or older", onPressed: () => _onPickAge(AgeGroup.eighteenOrOlder)),
+          PillButton(label: l10n.onbAgeYes, onPressed: () => _onPickAge(AgeGroup.eighteenOrOlder)),
           const SizedBox(height: AppSpacing.sm),
           PillButton(
-            label: "No, I'm under 18",
+            label: l10n.onbAgeNo,
             variant: PillButtonVariant.outlined,
             onPressed: () => _onPickAge(AgeGroup.underEighteen),
           ),
@@ -165,10 +173,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     }
     final label = switch (_currentStep) {
-      2 => 'I understand, continue',
-      5 => 'Continue with my choices',
-      7 => 'Finish and open NAGARIK',
-      _ => 'Continue',
+      2 => l10n.onbUnderstandContinue,
+      5 => l10n.onbContinueChoices,
+      7 => l10n.onbFinish,
+      _ => l10n.onbContinue,
     };
     return PillButton(
       label: label,
@@ -199,7 +207,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                     TextButton(
                       onPressed: _onSkipStep,
-                      child: const Text('Skip', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      child: Text(AppLocalizations.of(context).onbSkip, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -251,6 +259,7 @@ class _WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -263,7 +272,7 @@ class _WelcomePage extends StatelessWidget {
                   offset: const Offset(0, -0.3),
                   child: Row(
                     children: [
-                      const Logo(size: 28),
+                      const Logo(size: 38, transparent: true),
                       const SizedBox(width: AppSpacing.xs),
                       const Text(
                         'NAGARIK',
@@ -275,7 +284,7 @@ class _WelcomePage extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      TextButton(onPressed: onSkip, child: const Text('Skip')),
+                      TextButton(onPressed: onSkip, child: Text(l10n.onbSkip)),
                     ],
                   ),
                 ),
@@ -301,10 +310,10 @@ class _WelcomePage extends StatelessWidget {
                         const SizedBox(height: AppSpacing.lg),
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 160),
-                          child: const Text(
-                            'A CIVIC GOOD INITIATIVE',
-                            style: TextStyle(
-                              color: AppColors.accentTeal,
+                          child: Text(
+                            l10n.authCivicGoodTag,
+                            style: const TextStyle(
+                              color: AppColors.accentDark,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                               letterSpacing: 2.2,
@@ -315,7 +324,7 @@ class _WelcomePage extends StatelessWidget {
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 190),
                           child: Text(
-                            'See it. Report it. Get it fixed.',
+                            l10n.onbWelcomeTitle,
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
@@ -327,9 +336,7 @@ class _WelcomePage extends StatelessWidget {
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 220),
                           child: Text(
-                            'Report roads, streetlights, sanitation, water, electricity and '
-                            "safety issues in your area — then track every one until it's "
-                            'resolved. A few quick, optional steps and you\'re in.',
+                            l10n.onbWelcomeBody,
                             textAlign: TextAlign.center,
                             style: Theme.of(context)
                                 .textTheme
@@ -348,7 +355,7 @@ class _WelcomePage extends StatelessWidget {
                 ),
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 280),
-                  child: PillButton(label: 'Get Started', onPressed: onGetStarted),
+                  child: PillButton(label: l10n.onbGetStarted, onPressed: onGetStarted),
                 ),
               ],
             ),
@@ -432,13 +439,14 @@ class _LanguageStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Center(child: Logo(size: 76)),
+        const Center(child: Logo(size: 100, transparent: true)),
         const SizedBox(height: AppSpacing.lg),
-        const _OnboardingTitle(
-          title: 'Choose your language',
+        _OnboardingTitle(
+          title: l10n.onbLanguageTitle,
           subtitle: 'अपनी भाषा चुनें · तुमची भाषा निवडा',
           center: true,
         ),
@@ -452,7 +460,7 @@ class _LanguageStep extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
         ],
         Text(
-          'You can change this any time in Preferences.',
+          l10n.onbLanguageHint,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
@@ -517,30 +525,31 @@ class _AboutStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Align(alignment: Alignment.centerLeft, child: Logo(size: 64)),
+        const Align(alignment: Alignment.centerLeft, child: Logo(size: 88, transparent: true)),
         const SizedBox(height: AppSpacing.lg),
-        const _OnboardingTitle(
-          title: "Fix what's around you.",
-          subtitle: 'Report it, track it, see it resolved.',
+        _OnboardingTitle(
+          title: l10n.onbAboutTitle,
+          subtitle: l10n.onbAboutSubtitle,
         ),
         const SizedBox(height: AppSpacing.lg),
-        const _InfoRow(
+        _InfoRow(
           icon: Icons.verified_outlined,
-          title: 'Every report is tracked',
-          body: 'Follow it from Submitted through In Review to Resolved.',
+          title: l10n.onbAboutTrackedTitle,
+          body: l10n.onbAboutTrackedBody,
         ),
-        const _InfoRow(
+        _InfoRow(
           icon: Icons.location_on_outlined,
-          title: 'Pinned to the exact spot',
-          body: 'A photo and a location help the right team find the problem.',
+          title: l10n.onbAboutPinnedTitle,
+          body: l10n.onbAboutPinnedBody,
         ),
-        const _InfoRow(
+        _InfoRow(
           icon: Icons.history,
-          title: 'Everything in one place',
-          body: 'Sign in to see all your reports in My Reports, and browse nearby ones.',
+          title: l10n.onbAboutOnePlaceTitle,
+          body: l10n.onbAboutOnePlaceBody,
         ),
         const SizedBox(height: AppSpacing.md),
         Container(
@@ -557,12 +566,12 @@ class _AboutStep extends StatelessWidget {
                 child: Text.rich(
                   TextSpan(
                     style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
-                    children: const [
+                    children: [
                       TextSpan(
-                        text: 'NAGARIK is not an emergency service. ',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                        text: l10n.onbNotEmergency,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      TextSpan(text: 'If you or someone is in danger, call 112.'),
+                      TextSpan(text: l10n.onbDangerCall112),
                     ],
                   ),
                 ),
@@ -640,18 +649,18 @@ class _MobileNumberStepState extends State<_MobileNumberStep> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final hasError = widget.errorText != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: AppSpacing.md),
-        const _OnboardingTitle(
-          title: 'Your mobile number',
-          subtitle: "Optional. It's only used if a reviewer needs to reach you about a report — "
-              "you'll still sign in with email or Google.",
+        _OnboardingTitle(
+          title: l10n.onbMobileTitle,
+          subtitle: l10n.onbMobileSubtitle,
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Mobile number', style: theme.textTheme.titleMedium),
+        Text(l10n.onbMobileLabel, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         Container(
           height: 64,
@@ -716,12 +725,12 @@ class _AgeStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: AppSpacing.xl),
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xl),
       child: _OnboardingTitle(
-        title: 'Are you 18 or older?',
-        subtitle: 'This helps us follow data protection rules. It is entirely optional — '
-            'you can skip it.',
+        title: l10n.onbAgeTitle,
+        subtitle: l10n.onbAgeSubtitle,
       ),
     );
   }
@@ -742,13 +751,13 @@ class _PrivacyStepState extends State<_PrivacyStep> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _OnboardingTitle(
-          title: 'Your data, your choice',
-          subtitle: 'Turn on only what you want. Each switch is a separate consent, and your '
-              'phone still asks before anything is shared.',
+        _OnboardingTitle(
+          title: l10n.onbPrivacyTitle,
+          subtitle: l10n.onbPrivacySubtitle,
         ),
         const SizedBox(height: AppSpacing.lg),
         Container(
@@ -761,14 +770,14 @@ class _PrivacyStepState extends State<_PrivacyStep> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'NEEDED TO SIGN IN',
+                l10n.onbNeededToSignIn,
                 style: theme.textTheme.bodySmall?.copyWith(letterSpacing: 1.4, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text('Your email address', style: theme.textTheme.titleMedium?.copyWith(fontSize: 18)),
+              Text(l10n.onbYourEmail, style: theme.textTheme.titleMedium?.copyWith(fontSize: 18)),
               const SizedBox(height: 2),
               Text(
-                'To sign you in and keep your reports linked to you.',
+                l10n.onbYourEmailBody,
                 style: theme.textTheme.bodyMedium,
               ),
             ],
@@ -776,28 +785,27 @@ class _PrivacyStepState extends State<_PrivacyStep> {
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'YOU CHOOSE',
+          l10n.onbYouChoose,
           style: theme.textTheme.bodySmall?.copyWith(letterSpacing: 1.4, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: AppSpacing.sm),
         _ConsentRow(
-          title: 'Location',
-          body: 'Tag a report with where the issue is, and show what is near you.',
+          title: l10n.onbLocation,
+          body: l10n.onbConsentLocationBody,
           value: widget.draft.locationPreviewEnabled,
           onChanged: (value) => setState(() => widget.draft.locationPreviewEnabled = value),
         ),
         const Divider(height: 1),
         _ConsentRow(
-          title: 'Camera & photos',
-          body: 'Attach the photos you choose to a report.',
+          title: l10n.onbCameraPhotos,
+          body: l10n.onbConsentCameraBody,
           value: widget.draft.cameraPreviewEnabled,
           onChanged: (value) => setState(() => widget.draft.cameraPreviewEnabled = value),
         ),
         const Divider(height: 1),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'You can continue with everything off. Features that need a consent you '
-          "haven't given simply won't be available.",
+          l10n.onbPrivacyFooter,
           style: theme.textTheme.bodyMedium,
         ),
       ],
@@ -882,19 +890,20 @@ class _PermissionsStepState extends State<_PermissionsStep> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _OnboardingTitle(
-          title: 'Two phone permissions',
-          subtitle: 'Your phone will ask you to confirm each one.',
+        _OnboardingTitle(
+          title: l10n.onbPermTitle,
+          subtitle: l10n.onbPermSubtitle,
         ),
         const SizedBox(height: AppSpacing.lg),
         _PermissionCard(
           icon: Icons.location_on_outlined,
-          title: 'Location',
-          body: 'To place a report on the map and show what is near you.',
-          buttonLabel: 'Allow while using the app',
+          title: l10n.onbLocation,
+          body: l10n.onbPermLocationBody,
+          buttonLabel: l10n.onbAllowWhileUsing,
           primaryButton: true,
           enabled: widget.draft.locationPreviewEnabled,
           status: _locationStatus,
@@ -904,9 +913,9 @@ class _PermissionsStepState extends State<_PermissionsStep> {
         const SizedBox(height: AppSpacing.md),
         _PermissionCard(
           icon: Icons.photo_camera_outlined,
-          title: 'Camera & photos',
-          body: 'To attach a photo of the issue to your report.',
-          buttonLabel: 'Allow camera',
+          title: l10n.onbCameraPhotos,
+          body: l10n.onbPermCameraBody,
+          buttonLabel: l10n.onbAllowCamera,
           primaryButton: false,
           enabled: widget.draft.cameraPreviewEnabled,
           status: _cameraStatus,
@@ -915,7 +924,7 @@ class _PermissionsStepState extends State<_PermissionsStep> {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'Skipped one? You can still allow it later when you report an issue.',
+          l10n.onbPermFooter,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
@@ -946,21 +955,22 @@ class _PermissionCard extends StatelessWidget {
   final bool isRequesting;
   final VoidCallback onAllow;
 
-  Widget _action() {
+  Widget _action(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!enabled) return const SizedBox.shrink();
     final current = status;
     if (current != null && current.isGranted) {
-      return const Row(
+      return Row(
         children: [
-          Icon(Icons.check_circle, color: AppColors.success),
-          SizedBox(width: AppSpacing.xs),
-          Text('Allowed', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.success)),
+          const Icon(Icons.check_circle, color: AppColors.success),
+          const SizedBox(width: AppSpacing.xs),
+          Text(l10n.onbAllowed, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.success)),
         ],
       );
     }
     if (current != null && current.isPermanentlyDenied) {
       return PillButton(
-        label: 'Open settings',
+        label: l10n.onbOpenSettings,
         variant: PillButtonVariant.outlined,
         onPressed: openAppSettings,
       );
@@ -976,6 +986,7 @@ class _PermissionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -1007,8 +1018,7 @@ class _PermissionCard extends StatelessWidget {
                     Text(
                       enabled
                           ? body
-                          : 'You turned this off on the previous step. You can still allow it '
-                              "later from your phone's settings.",
+                          : l10n.onbPermOffBody,
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
@@ -1018,7 +1028,7 @@ class _PermissionCard extends StatelessWidget {
           ),
           if (enabled) ...[
             const SizedBox(height: AppSpacing.md),
-            _action(),
+            _action(context),
           ],
         ],
       ),
@@ -1037,17 +1047,18 @@ class _PreferencesStep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final themePreference = ref.watch(themePreferenceProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _OnboardingTitle(
-          title: 'Set up NAGARIK',
-          subtitle: 'Last step. You can change this any time.',
+        _OnboardingTitle(
+          title: l10n.onbSetupTitle,
+          subtitle: l10n.onbSetupSubtitle,
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Appearance', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+        Text(l10n.onbAppearance, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: AppSpacing.sm),
         Container(
           padding: const EdgeInsets.all(6),
@@ -1070,14 +1081,14 @@ class _PreferencesStep extends ConsumerWidget {
                         color: preference == themePreference ? AppColors.surface : Colors.transparent,
                         borderRadius: BorderRadius.circular(999),
                         boxShadow: preference == themePreference
-                            ? const [BoxShadow(blurRadius: 6, offset: Offset(0, 2), color: Color(0x1A12213A))]
+                            ? const [BoxShadow(blurRadius: 6, offset: Offset(0, 2), color: Color(0x1A0F1F3D))]
                             : null,
                       ),
                       child: Text(
                         switch (preference) {
-                          AppThemePreference.system => 'System',
-                          AppThemePreference.light => 'Light',
-                          AppThemePreference.dark => 'Dark',
+                          AppThemePreference.system => l10n.onbThemeSystem,
+                          AppThemePreference.light => l10n.onbThemeLight,
+                          AppThemePreference.dark => l10n.onbThemeDark,
                         },
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                       ),
@@ -1102,7 +1113,7 @@ class _PreferencesStep extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Language', style: theme.textTheme.bodyMedium),
+                    Text(l10n.onbLanguage, style: theme.textTheme.bodyMedium),
                     Text(
                       language.label,
                       style: theme.textTheme.titleMedium?.copyWith(fontSize: 19, fontWeight: FontWeight.w800),
@@ -1112,7 +1123,7 @@ class _PreferencesStep extends ConsumerWidget {
               ),
               TextButton(
                 onPressed: onEditLanguage,
-                child: const Text('Change', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                child: Text(l10n.onbChange, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ],
           ),

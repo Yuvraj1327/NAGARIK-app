@@ -80,7 +80,7 @@ class AppTheme {
           ),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           elevation: 1,
-          shadowColor: const Color(0x332088E8),
+          shadowColor: const Color(0x331A4BA3),
           surfaceTintColor: Colors.transparent,
         ),
       ),
@@ -104,7 +104,7 @@ class AppTheme {
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.primaryLight,
         elevation: 3,
-        shadowColor: Color(0x1A12213A),
+        shadowColor: Color(0x1A0F1F3D),
         surfaceTintColor: Colors.transparent,
         height: 64,
       ),
@@ -126,6 +126,23 @@ class AppTheme {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.dark,
+    ).copyWith(
+      primary: AppColors.darkPrimary,
+      onPrimary: AppColors.darkBackground,
+      primaryContainer: AppColors.darkPrimaryContainer,
+      onPrimaryContainer: AppColors.darkTextPrimary,
+      secondary: AppColors.accent,
+      surface: AppColors.darkSurface,
+      onSurface: AppColors.darkTextPrimary,
+      onSurfaceVariant: AppColors.darkTextSecondary,
+      surfaceContainerLowest: AppColors.darkBackground,
+      surfaceContainerLow: AppColors.darkSurface,
+      surfaceContainer: AppColors.darkSurface,
+      surfaceContainerHigh: AppColors.darkSurfaceHigh,
+      surfaceContainerHighest: AppColors.darkSurfaceHigh,
+      outline: AppColors.darkBorder,
+      outlineVariant: AppColors.darkBorder,
+      error: const Color(0xFFF87171),
     );
 
     return ThemeData(
@@ -160,15 +177,15 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.darkPrimary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderSide: const BorderSide(color: Color(0xFFF87171)),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFFF87171), width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
@@ -177,7 +194,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.primaryBright,
           foregroundColor: AppColors.onPrimary,
           disabledBackgroundColor: AppColors.darkTextDisabled,
           shape: RoundedRectangleBorder(
@@ -191,8 +208,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: const BorderSide(color: AppColors.primary, width: 1.3),
+          foregroundColor: AppColors.darkPrimary,
+          side: const BorderSide(color: AppColors.darkPrimary, width: 1.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
@@ -201,21 +218,29 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
+          foregroundColor: AppColors.darkPrimary,
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: AppColors.darkSurface,
-        indicatorColor: Color(0xFF1E3A8A),
+        indicatorColor: AppColors.darkPrimaryContainer,
         elevation: 3,
         shadowColor: Color(0x40000000),
         surfaceTintColor: Colors.transparent,
         height: 64,
       ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.darkSurfaceHigh,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.darkSurfaceHigh,
+        surfaceTintColor: Colors.transparent,
+      ),
       dividerTheme: const DividerThemeData(color: AppColors.darkBorder, thickness: 1),
       snackBarTheme: const SnackBarThemeData(
-        backgroundColor: AppColors.darkSurface,
+        backgroundColor: AppColors.darkSurfaceHigh,
         contentTextStyle: TextStyle(color: AppColors.darkTextPrimary),
         behavior: SnackBarBehavior.floating,
       ),

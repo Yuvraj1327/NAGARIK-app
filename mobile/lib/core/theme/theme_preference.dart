@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:nagarik/l10n/app_localizations.dart';
+
 /// The three choices Settings offers (Profile & Settings upgrade). Distinct
 /// from Flutter's own [ThemeMode] so this file has no obligation to match
 /// that enum's member names/order if Flutter's ever changes.
@@ -20,6 +22,14 @@ enum AppThemePreference {
         AppThemePreference.system => ThemeMode.system,
         AppThemePreference.light => ThemeMode.light,
         AppThemePreference.dark => ThemeMode.dark,
+      };
+}
+
+extension AppThemePreferenceL10n on AppThemePreference {
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+        AppThemePreference.system => l10n.setThemeSystem,
+        AppThemePreference.light => l10n.setThemeLight,
+        AppThemePreference.dark => l10n.setThemeDark,
       };
 }
 

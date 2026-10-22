@@ -21,6 +21,7 @@ import 'package:nagarik/features/reports/domain/report_draft.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
 import 'package:nagarik/features/reports/presentation/widgets/location_picker_map.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_stepper.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
 import 'package:nagarik/shared/widgets/pill_button.dart';
@@ -48,7 +49,6 @@ class CreateReportScreen extends ConsumerStatefulWidget {
 
 class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   static const int _stepCount = 5;
-  static const List<String> _stepLabels = ['Type', 'Photo', 'Place', 'Details', 'Review'];
 
   int _currentStep = 0;
   bool _isSubmitting = false;
@@ -91,7 +91,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     // if-chain, not `switch`: a non-empty Dart `switch` case can't fall
     // through, and only one step is ever active per call anyway.
     if (_currentStep == 0 && _draft.category == null) {
-      _showMessage('Please select a category to continue.');
+      _showMessage(AppLocalizations.of(context).repSelectCategory);
       return;
     }
     if (_currentStep == 2 && !(_placeFormKey.currentState?.validate() ?? false)) {
@@ -109,6 +109,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 
   Future<void> _submitDraft() async {
+    final submitFailed = AppLocalizations.of(context).repSubmitFailed;
     setState(() => _isSubmitting = true);
     try {
       final submitted = await ref.read(reportsRepositoryProvider).submitReport(_draft);
@@ -120,11 +121,11 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
       _showMessage(
         apiError is ApiException
             ? apiError.message
-            : 'Could not submit your report. Please try again.',
+            : submitFailed,
       );
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Could not submit your report. Please try again.');
+      _showMessage(submitFailed);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -161,10 +162,11 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   }
 
   Widget _buildBottomBar() {
+    final l10n = AppLocalizations.of(context);
     final label = switch (_currentStep) {
-      2 => 'Confirm place',
-      4 => 'Send report',
-      _ => 'Continue',
+      2 => l10n.repConfirmPlace,
+      4 => l10n.repSendReport,
+      _ => l10n.repContinue,
     };
     final primary = PillButton(
       label: label,
@@ -173,9 +175,9 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     );
 
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
       child: _currentStep == 1
@@ -183,7 +185,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
               children: [
                 Expanded(
                   child: PillButton(
-                    label: 'Skip',
+                    label: l10n.repSkip,
                     variant: PillButtonVariant.outlined,
                     onPressed: () => setState(() => _currentStep += 1),
                   ),
@@ -202,9 +204,17 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
     if (submitted != null) {
       return _SuccessView(report: submitted);
     }
+    final l10n = AppLocalizations.of(context);
+    final stepLabels = [
+      l10n.repStepType,
+      l10n.repStepPhoto,
+      l10n.repStepPlace,
+      l10n.repStepDetails,
+      l10n.repStepReview,
+    ];
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.surfaceColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -218,7 +228,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
                   ),
                   Expanded(
                     child: Text(
-                      _currentStep == _stepCount - 1 ? 'Review and send' : 'Report an issue',
+                      _currentStep == _stepCount - 1 ? l10n.repReviewAndSend : l10n.repReportAnIssue,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                     ),
@@ -229,7 +239,7 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
-              child: ReportStepper(labels: _stepLabels, currentStep: _currentStep),
+              child: ReportStepper(labels: stepLabels, currentStep: _currentStep),
             ),
             Expanded(
               child: ResponsiveCenter(
@@ -303,29 +313,30 @@ class _TypeStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
           decoration: BoxDecoration(
-            color: AppColors.primaryLight.withOpacity(0.55),
+            color: context.tintColor.withOpacity(0.55),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             children: [
-              const Icon(Icons.phone_outlined, size: 22, color: AppColors.textPrimary),
+              Icon(Icons.phone_outlined, size: 22, color: context.textPrimaryColor),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text.rich(
                   TextSpan(
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
-                    children: const [
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.textPrimaryColor),
+                    children: [
                       TextSpan(
-                        text: 'Someone in danger? ',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                        text: '${l10n.repSomeoneInDanger} ',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      TextSpan(text: 'Call 112 first.'),
+                      TextSpan(text: l10n.repCall112First),
                     ],
                   ),
                 ),
@@ -339,14 +350,14 @@ class _TypeStep extends StatelessWidget {
                     shape: const StadiumBorder(),
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   ),
-                  child: const Text('Call 112', style: TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(l10n.repCall112, style: const TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text('What do you want to report?', style: Theme.of(context).textTheme.headlineSmall),
+        Text(l10n.repWhatToReport, style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: AppSpacing.md),
         GridView.count(
           crossAxisCount: 3,
@@ -390,7 +401,7 @@ class _TypeTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
+              color: isSelected ? AppColors.primary : context.borderColor,
               width: isSelected ? 3 : 2,
             ),
           ),
@@ -406,31 +417,31 @@ class _TypeTile extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Color(0x0012213A), Color(0x1A12213A), Color(0xCC12213A)],
+                        colors: [Color(0x000F1F3D), Color(0x1A0F1F3D), Color(0xCC0F1F3D)],
                         stops: [0.0, 0.45, 1.0],
                       ),
                     ),
                   ),
                 ] else
                   Container(
-                    color: AppColors.primaryLight,
+                    color: context.tintColor,
                     alignment: Alignment.topLeft,
                     padding: const EdgeInsets.all(AppSpacing.sm),
-                    child: Icon(category.icon, size: 30, color: AppColors.primary),
+                    child: Icon(category.icon, size: 30, color: context.accentColor),
                   ),
                 Positioned(
                   left: 10,
                   right: 10,
                   bottom: 8,
                   child: Text(
-                    category.label,
+                    category.localizedLabel(AppLocalizations.of(context)),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.15,
                       fontWeight: FontWeight.w800,
-                      color: imagePath != null ? Colors.white : AppColors.textPrimary,
+                      color: imagePath != null ? Colors.white : context.textPrimaryColor,
                     ),
                   ),
                 ),
@@ -475,9 +486,10 @@ class _PhotoStepState extends State<_PhotoStep> {
 
   Future<void> _pickFromGallery() async {
     if (_remainingSlots <= 0) {
-      _showMessage('You can attach up to ${ReportsRepository.maxImages} photos.');
+      _showMessage(AppLocalizations.of(context).repPhotoLimit(ReportsRepository.maxImages));
       return;
     }
+    final failedMessage = AppLocalizations.of(context).repPhotoLibraryFailed;
     setState(() => _isPicking = true);
     try {
       final picked = await _picker.pickMultiImage(limit: _remainingSlots);
@@ -485,7 +497,7 @@ class _PhotoStepState extends State<_PhotoStep> {
         setState(() => widget.draft.images.addAll(picked));
       }
     } catch (_) {
-      _showMessage('Could not open the photo library. Please try again.');
+      _showMessage(failedMessage);
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
@@ -493,9 +505,10 @@ class _PhotoStepState extends State<_PhotoStep> {
 
   Future<void> _takePhoto() async {
     if (_remainingSlots <= 0) {
-      _showMessage('You can attach up to ${ReportsRepository.maxImages} photos.');
+      _showMessage(AppLocalizations.of(context).repPhotoLimit(ReportsRepository.maxImages));
       return;
     }
+    final failedMessage = AppLocalizations.of(context).repCameraFailed;
     setState(() => _isPicking = true);
     try {
       final photo = await _picker.pickImage(source: ImageSource.camera);
@@ -503,7 +516,7 @@ class _PhotoStepState extends State<_PhotoStep> {
         setState(() => widget.draft.images.add(photo));
       }
     } catch (_) {
-      _showMessage('Could not open the camera. Please try again.');
+      _showMessage(failedMessage);
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
@@ -521,13 +534,14 @@ class _PhotoStepState extends State<_PhotoStep> {
   @override
   Widget build(BuildContext context) {
     final images = widget.draft.images;
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _StepHeading(
-          title: 'Add a photo',
-          subtitle: 'Optional, but it helps reviewers check faster. Keep a safe distance.',
+        _StepHeading(
+          title: l10n.repAddPhoto,
+          subtitle: l10n.repAddPhotoSubtitle,
         ),
         Container(
           height: 320,
@@ -540,7 +554,7 @@ class _PhotoStepState extends State<_PhotoStep> {
               const Spacer(),
               const Icon(Icons.photo_camera_outlined, size: 44, color: Color(0xFFCBD5E1)),
               const SizedBox(height: AppSpacing.sm),
-              const Text('Camera', style: TextStyle(fontSize: 17, color: Color(0xFFCBD5E1))),
+              Text(l10n.repCamera, style: const TextStyle(fontSize: 17, color: Color(0xFFCBD5E1))),
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
@@ -635,7 +649,7 @@ class _PhotoStepState extends State<_PhotoStep> {
           const SizedBox(height: AppSpacing.sm),
         ],
         Text(
-          '${images.length} of ${ReportsRepository.maxImages} added.',
+          l10n.repPhotosAdded(images.length, ReportsRepository.maxImages),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
@@ -643,14 +657,13 @@ class _PhotoStepState extends State<_PhotoStep> {
   }
 }
 
-/// Step 3 — Place. Search field, a Google Map with a fixed center pin
-/// ("Drag the map to adjust"), a locate button, and an "Others will see"
+/// Step 3 — Place. Search field, a Google Map with a draggable pin
+/// ("Drag the pin to adjust"), a locate button, and an "Others will see"
 /// card — plus the City/PIN fields the backend requires, auto-filled from
 /// reverse geocoding but always editable.
 ///
-/// Never invents a position: [ReportDraft.latitude]/[longitude] are only
-/// set from [LocationPickerMap.onPositionChanged], which only fires after
-/// a real pan or "locate me" tap.
+/// [ReportDraft.latitude]/[longitude] start at the Mumbai default and follow
+/// [LocationPickerMap.onPositionChanged] (pin drag, map tap, search, locate).
 class _PlaceStep extends StatefulWidget {
   const _PlaceStep({
     super.key,
@@ -670,9 +683,10 @@ class _PlaceStep extends StatefulWidget {
 }
 
 class _PlaceStepState extends State<_PlaceStep> {
-  /// Geographic center of India — a neutral starting view only, never
-  /// written into the draft.
-  static const _defaultCenter = LatLng(22.9734, 78.6569);
+  /// Default pin location (Mumbai). Written into the draft on first open so
+  /// the pin and the submitted coordinates always agree; the person must
+  /// confirm it (or move the pin) before continuing.
+  static const _defaultCenter = LatLng(19.0760, 72.8777);
 
   late final TextEditingController _cityController =
       TextEditingController(text: widget.draft.city);
@@ -686,12 +700,23 @@ class _PlaceStepState extends State<_PlaceStep> {
   bool _pinEditedByUser = false;
   bool _isResolving = false;
   bool _isSearching = false;
+  bool _locationConfirmed = false;
 
   @override
   void initState() {
     super.initState();
     _cityEditedByUser = widget.draft.city.isNotEmpty;
     _pinEditedByUser = widget.draft.pinCode.isNotEmpty;
+    if (widget.draft.latitude == null || widget.draft.longitude == null) {
+      widget.draft.latitude = _defaultCenter.latitude;
+      widget.draft.longitude = _defaultCenter.longitude;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onPositionChanged(_defaultCenter, moved: false);
+      });
+    } else {
+      // Returning to this step with an already-chosen spot.
+      _locationConfirmed = true;
+    }
   }
 
   LatLng get _initialPosition {
@@ -700,11 +725,14 @@ class _PlaceStepState extends State<_PlaceStep> {
     return (lat != null && lng != null) ? LatLng(lat, lng) : _defaultCenter;
   }
 
-  Future<void> _onPositionChanged(LatLng position) async {
+  Future<void> _onPositionChanged(LatLng position, {bool moved = true}) async {
     widget.draft.latitude = position.latitude;
     widget.draft.longitude = position.longitude;
 
-    setState(() => _isResolving = true);
+    setState(() {
+      if (moved) _locationConfirmed = false;
+      _isResolving = true;
+    });
     final place = await widget.geocodingService.placeFromCoordinates(
       position.latitude,
       position.longitude,
@@ -733,7 +761,7 @@ class _PlaceStepState extends State<_PlaceStep> {
     setState(() => _isSearching = false);
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't find that place. Try a nearby landmark or area.")),
+        SnackBar(content: Text(AppLocalizations.of(context).repPlaceNotFound)),
       );
       return;
     }
@@ -743,6 +771,7 @@ class _PlaceStepState extends State<_PlaceStep> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final city = widget.draft.city.trim();
     final hasCoordinates = widget.draft.latitude != null;
 
@@ -751,13 +780,13 @@ class _PlaceStepState extends State<_PlaceStep> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _StepHeading(title: 'Where is it?'),
+          _StepHeading(title: l10n.repWhereIsIt),
           TextField(
             controller: _searchController,
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
             decoration: InputDecoration(
-              hintText: 'Search an area or landmark',
+              hintText: l10n.repSearchHint,
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _isSearching
                   ? const Padding(
@@ -772,11 +801,11 @@ class _PlaceStepState extends State<_PlaceStep> {
               contentPadding: const EdgeInsets.symmetric(vertical: 16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(22),
-                borderSide: const BorderSide(color: AppColors.border, width: 2),
+                borderSide: BorderSide(color: context.borderColor, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(22),
-                borderSide: const BorderSide(color: AppColors.border, width: 2),
+                borderSide: BorderSide(color: context.borderColor, width: 2),
               ),
             ),
           ),
@@ -791,33 +820,63 @@ class _PlaceStepState extends State<_PlaceStep> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.primaryLight.withOpacity(0.55),
+              color: context.tintColor.withOpacity(0.55),
               borderRadius: BorderRadius.circular(22),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Others will see', style: theme.textTheme.bodyMedium),
+                Text(l10n.repOthersWillSee, style: theme.textTheme.bodyMedium),
                 const SizedBox(height: 2),
                 Text(
                   _isResolving
-                      ? 'Finding the area…'
-                      : (city.isNotEmpty ? city : 'Move the map to set the area'),
+                      ? l10n.repFindingArea
+                      : (city.isNotEmpty ? city : l10n.repMoveMapToSetArea),
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   hasCoordinates
-                      ? 'Pin set at ${widget.draft.latitude!.toStringAsFixed(5)}, '
-                          '${widget.draft.longitude!.toStringAsFixed(5)}.'
-                      : 'Drag the map or tap the locate button — your location is only '
-                          'used when you ask for it.',
+                      ? l10n.repSelectedCoords(
+                          widget.draft.latitude!.toStringAsFixed(5),
+                          widget.draft.longitude!.toStringAsFixed(5),
+                        )
+                      : l10n.repPinNoCoords,
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
+          FormField<bool>(
+            key: const ValueKey('confirm-location'),
+            initialValue: _locationConfirmed,
+            validator: (_) =>
+                _locationConfirmed ? null : l10n.repConfirmPinError,
+            builder: (field) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(l10n.repCorrectLocation),
+                  value: _locationConfirmed,
+                  onChanged: (value) {
+                    setState(() => _locationConfirmed = value ?? false);
+                    field.didChange(_locationConfirmed);
+                  },
+                ),
+                if (field.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      field.errorText!,
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _cityController,
             textInputAction: TextInputAction.next,
@@ -827,9 +886,9 @@ class _PlaceStepState extends State<_PlaceStep> {
               _cityEditedByUser = true;
               setState(() => widget.draft.city = value);
             },
-            decoration: const InputDecoration(labelText: 'City / area'),
+            decoration: InputDecoration(labelText: l10n.repCityArea),
             validator: (value) =>
-                (value == null || value.trim().isEmpty) ? 'City is required.' : null,
+                (value == null || value.trim().isEmpty) ? l10n.repCityRequired : null,
           ),
           const SizedBox(height: AppSpacing.sm),
           TextFormField(
@@ -840,11 +899,11 @@ class _PlaceStepState extends State<_PlaceStep> {
               _pinEditedByUser = true;
               widget.draft.pinCode = value;
             },
-            decoration: const InputDecoration(labelText: 'PIN code'),
+            decoration: InputDecoration(labelText: l10n.repPinCode),
             validator: (value) {
               final pin = value?.trim() ?? '';
-              if (pin.isEmpty) return 'PIN code is required.';
-              if (!RegExp(r'^[0-9]{6}$').hasMatch(pin)) return 'Enter a valid 6-digit PIN code.';
+              if (pin.isEmpty) return l10n.repPinRequired;
+              if (!RegExp(r'^[0-9]{6}$').hasMatch(pin)) return l10n.repPinInvalid;
               return null;
             },
           ),
@@ -884,12 +943,13 @@ class _DetailsStepState extends State<_DetailsStep> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _StepHeading(title: 'Tell us what you see'),
-        Text('Short description', style: theme.textTheme.titleMedium),
+        _StepHeading(title: l10n.repTellWhatYouSee),
+        Text(l10n.repShortDescription, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         Form(
           key: widget.formKey,
@@ -904,7 +964,7 @@ class _DetailsStepState extends State<_DetailsStep> {
               children: [
                 Expanded(
                   child: Text(
-                    "Don't include names or phone numbers",
+                    l10n.repNoNamesPhones,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
@@ -912,37 +972,39 @@ class _DetailsStepState extends State<_DetailsStep> {
               ],
             ),
             decoration: InputDecoration(
-              hintText: 'e.g. Large pothole near the bus stop causing traffic issues',
+              hintText: l10n.repDescriptionHint,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(22),
-                borderSide: const BorderSide(color: AppColors.border, width: 2),
+                borderSide: BorderSide(color: context.borderColor, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(22),
-                borderSide: const BorderSide(color: AppColors.border, width: 2),
+                borderSide: BorderSide(color: context.borderColor, width: 2),
               ),
             ),
             validator: (value) {
               if (value == null || value.trim().length < 10) {
-                return 'Please provide at least 10 characters.';
+                return l10n.repDescriptionMin;
               }
               return null;
             },
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Is anyone hurt or in danger?', style: theme.textTheme.titleMedium),
+        Text(l10n.repAnyoneHurt, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         _ChoiceRow(
           options: const ['No', 'Yes'],
+          labels: [l10n.repNo, l10n.repYes],
           selected: widget.draft.anyoneHurt,
           onChanged: (value) => setState(() => widget.draft.anyoneHurt = value),
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Is it still happening?', style: theme.textTheme.titleMedium),
+        Text(l10n.repStillHappening, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         _ChoiceRow(
           options: const ['Yes', 'No', 'Not sure'],
+          labels: [l10n.repYes, l10n.repNo, l10n.repNotSure],
           selected: widget.draft.stillHappening,
           onChanged: (value) => setState(() => widget.draft.stillHappening = value),
         ),
@@ -960,9 +1022,16 @@ class _DetailsStepState extends State<_DetailsStep> {
 /// A row of pill-shaped single-choice buttons. Tapping the selected one
 /// again clears the answer (both questions are optional).
 class _ChoiceRow extends StatelessWidget {
-  const _ChoiceRow({required this.options, required this.selected, required this.onChanged});
+  const _ChoiceRow({
+    required this.options,
+    required this.labels,
+    required this.selected,
+    required this.onChanged,
+  });
 
+  /// Stored answer values (sent to the backend as-is); [labels] is what's shown.
   final List<String> options;
+  final List<String> labels;
   final String? selected;
   final ValueChanged<String?> onChanged;
 
@@ -980,19 +1049,19 @@ class _ChoiceRow extends StatelessWidget {
                 height: 52,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: options[i] == selected ? AppColors.primaryLight : AppColors.surface,
+                  color: options[i] == selected ? context.tintColor : context.surfaceColor,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: options[i] == selected ? AppColors.primary : AppColors.border,
+                    color: options[i] == selected ? AppColors.primary : context.borderColor,
                     width: 2,
                   ),
                 ),
                 child: Text(
-                  options[i],
-                  style: const TextStyle(
+                  labels[i],
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: context.textPrimaryColor,
                   ),
                 ),
               ),
@@ -1016,17 +1085,18 @@ class _ReviewStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final category = draft.category;
     final imagePath = category?.imagePath;
     final photoCount = draft.images.length;
     final extras = <String>[
-      if (draft.anyoneHurt != null) (draft.anyoneHurt == 'No' ? 'No one hurt' : 'Someone hurt or in danger'),
+      if (draft.anyoneHurt != null) (draft.anyoneHurt == 'No' ? l10n.repNoOneHurt : l10n.repSomeoneHurt),
       if (draft.stillHappening != null)
         (draft.stillHappening == 'Yes'
-            ? 'Still happening'
+            ? l10n.repStillHappeningExtra
             : draft.stillHappening == 'No'
-                ? 'No longer happening'
-                : 'Not sure if still happening'),
+                ? l10n.repNoLongerHappening
+                : l10n.repNotSureStillHappening),
     ];
 
     return Column(
@@ -1035,7 +1105,7 @@ class _ReviewStep extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border, width: 2),
+            border: Border.all(color: context.borderColor, width: 2),
           ),
           child: Column(
             children: [
@@ -1048,20 +1118,20 @@ class _ReviewStep extends StatelessWidget {
                       : Container(
                           width: 64,
                           height: 64,
-                          color: AppColors.primaryLight,
+                          color: context.tintColor,
                           alignment: Alignment.center,
-                          child: Icon(category?.icon ?? Icons.category_outlined, color: AppColors.primary),
+                          child: Icon(category?.icon ?? Icons.category_outlined, color: context.accentColor),
                         ),
                 ),
-                label: 'Type',
-                value: category?.label ?? 'Not selected',
+                label: l10n.repStepType,
+                value: category?.localizedLabel(l10n) ?? l10n.repNotSelected,
                 valueIsLarge: true,
               ),
               const Divider(height: 1),
               _ReviewRow(
                 onEdit: () => onEditStep(1),
-                label: 'Photos',
-                value: photoCount == 0 ? 'None added' : '$photoCount photo${photoCount == 1 ? '' : 's'}',
+                label: l10n.repPhotos,
+                value: photoCount == 0 ? l10n.repNoneAdded : l10n.repPhotoCount(photoCount),
                 footer: photoCount == 0
                     ? null
                     : SizedBox(
@@ -1085,16 +1155,16 @@ class _ReviewStep extends StatelessWidget {
               const Divider(height: 1),
               _ReviewRow(
                 onEdit: () => onEditStep(2),
-                label: 'Place shown to others',
-                value: draft.city.isEmpty ? 'City not set' : draft.city,
+                label: l10n.repPlaceShown,
+                value: draft.city.isEmpty ? l10n.repCityNotSet : draft.city,
                 valueIsLarge: true,
-                footerText: draft.pinCode.isEmpty ? null : 'PIN ${draft.pinCode}',
+                footerText: draft.pinCode.isEmpty ? null : l10n.repPinValue(draft.pinCode),
               ),
               const Divider(height: 1),
               _ReviewRow(
                 onEdit: () => onEditStep(3),
-                label: 'Description',
-                value: draft.description.trim().isEmpty ? 'No description provided.' : draft.description.trim(),
+                label: l10n.repDescription,
+                value: draft.description.trim().isEmpty ? l10n.repNoDescription : draft.description.trim(),
                 footerText: extras.isEmpty ? null : extras.join(' · '),
               ),
             ],
@@ -1104,24 +1174,24 @@ class _ReviewStep extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppColors.primaryLight.withOpacity(0.55),
+            color: context.tintColor.withOpacity(0.55),
             borderRadius: BorderRadius.circular(22),
           ),
           child: Row(
             children: [
-              const Icon(Icons.fact_check_outlined, color: AppColors.primary),
+              Icon(Icons.fact_check_outlined, color: context.accentColor),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  'Check the details above — you can edit any section before sending.',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+                  l10n.repCheckDetails,
+                  style: theme.textTheme.bodyMedium?.copyWith(color: context.textPrimaryColor),
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Please only report real issues.', style: theme.textTheme.bodyMedium),
+        Text(l10n.repOnlyReportReal, style: theme.textTheme.bodyMedium),
       ],
     );
   }
@@ -1177,7 +1247,10 @@ class _ReviewRow extends StatelessWidget {
           ),
           TextButton(
             onPressed: onEdit,
-            child: const Text('Edit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            child: Text(
+              AppLocalizations.of(context).repEdit,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -1199,8 +1272,9 @@ class _SuccessView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.backgroundColor,
       body: SafeArea(
         child: ResponsiveCenter(
           child: SingleChildScrollView(
@@ -1215,8 +1289,8 @@ class _SuccessView extends StatelessWidget {
                   child: Container(
                     width: 88,
                     height: 88,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primaryLight,
+                    decoration: BoxDecoration(
+                      color: context.tintColor,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
@@ -1227,7 +1301,7 @@ class _SuccessView extends StatelessWidget {
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 90),
                   child: Text(
-                    'Report submitted',
+                    l10n.repSubmitted,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
@@ -1236,8 +1310,7 @@ class _SuccessView extends StatelessWidget {
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 120),
                   child: Text(
-                    "Thank you — we've received it and it's now marked as "
-                    'Submitted. Keep your reference ID to track its progress.',
+                    l10n.repSubmittedBody,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -1249,13 +1322,13 @@ class _SuccessView extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: context.surfaceColor,
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: context.borderColor),
                     ),
                     child: Column(
                       children: [
-                        Text('Reference ID', style: Theme.of(context).textTheme.labelMedium),
+                        Text(l10n.repReferenceId, style: Theme.of(context).textTheme.labelMedium),
                         const SizedBox(height: AppSpacing.xs),
                         SelectableText(
                           report.referenceId,
@@ -1263,7 +1336,7 @@ class _SuccessView extends StatelessWidget {
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
-                              ?.copyWith(color: AppColors.primary),
+                              ?.copyWith(color: context.accentColor),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         StatusBadge(status: report.status),
@@ -1275,7 +1348,7 @@ class _SuccessView extends StatelessWidget {
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 190),
                   child: PillButton(
-                    label: 'View report',
+                    label: l10n.repViewReport,
                     onPressed: () => context.go('/report/${report.id}'),
                   ),
                 ),
@@ -1283,7 +1356,7 @@ class _SuccessView extends StatelessWidget {
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 220),
                   child: PillButton(
-                    label: 'View my reports',
+                    label: l10n.repViewMyReports,
                     variant: PillButtonVariant.outlined,
                     onPressed: () => context.go('/my-reports'),
                   ),
@@ -1292,7 +1365,7 @@ class _SuccessView extends StatelessWidget {
                 FadeSlideIn(
                   delay: const Duration(milliseconds: 250),
                   child: PillButton(
-                    label: 'Back to Home',
+                    label: l10n.repBackHome,
                     variant: PillButtonVariant.soft,
                     onPressed: () => context.go('/home'),
                   ),

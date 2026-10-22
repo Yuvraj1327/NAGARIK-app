@@ -33,7 +33,7 @@ class ReportStepIndicator extends StatelessWidget {
               curve: Curves.easeOut,
               height: 4,
               decoration: BoxDecoration(
-                color: i <= currentStep ? AppColors.primary : AppColors.border,
+                color: i <= currentStep ? AppColors.primary : context.borderColor,
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
             ),

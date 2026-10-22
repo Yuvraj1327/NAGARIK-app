@@ -81,6 +81,9 @@ class CurrentUser:
     email: str | None = None
     full_name: str | None = None
     avatar_path: str | None = None
+    # Optional contact number from onboarding / Edit Profile, kept in
+    # `user_metadata.phone` like `full_name` (no phone-OTP auth involved).
+    phone: str | None = None
 
 
 class _JwksCache:
@@ -212,6 +215,7 @@ def _current_user_from_payload(payload: dict) -> CurrentUser:
         email=payload.get("email"),
         full_name=user_metadata.get("full_name"),
         avatar_path=user_metadata.get("avatar_path"),
+        phone=user_metadata.get("phone"),
     )
 
 

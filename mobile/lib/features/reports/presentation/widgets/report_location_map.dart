@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:nagarik/core/maps/maps_availability.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/features/reports/presentation/widgets/map_unavailable_view.dart';
 
 /// Whether [latitude]/[longitude] are a real, usable position. Rejects
@@ -66,7 +67,7 @@ class ReportLocationMap extends StatelessWidget {
                       shape: const CircleBorder(),
                       elevation: 2,
                       child: IconButton(
-                        tooltip: 'Open larger map',
+                        tooltip: AppLocalizations.of(context).repOpenLargerMap,
                         icon: const Icon(Icons.fullscreen, color: AppColors.primary),
                         onPressed: () => _openFullScreen(context, position),
                       ),

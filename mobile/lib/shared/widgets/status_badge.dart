@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:nagarik/core/constants/report_status.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 
@@ -26,7 +27,7 @@ class StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
-        status.label,
+        status.localizedLabel(AppLocalizations.of(context)),
         style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
       ),
     );

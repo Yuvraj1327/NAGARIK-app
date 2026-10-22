@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/discovery/presentation/providers/discovery_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 
 /// "📍 Bhopal" — the Home screen's current-location indicator, covering
 /// every state `homeLocationProvider` can be in: loading, resolved (with
@@ -43,7 +44,7 @@ class LocationIndicator extends ConsumerWidget {
               ),
               TextButton(
                 onPressed: () => ref.invalidate(homeLocationProvider),
-                child: const Text('Retry'),
+                child: Text(AppLocalizations.of(context).homeRetry),
               ),
             ],
           ),

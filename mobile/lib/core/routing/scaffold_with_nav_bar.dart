@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nagarik/core/theme/app_colors.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
 
 /// Shared scaffold for the four bottom-nav tabs (Home, Search, My Reports,
@@ -30,6 +31,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final current = navigationShell.currentIndex;
 
@@ -40,7 +42,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
           color: isDark ? AppColors.darkSurface : AppColors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: const [
-            BoxShadow(color: Color(0x1A12213A), blurRadius: 20, offset: Offset(0, -4)),
+            BoxShadow(color: Color(0x1A0F1F3D), blurRadius: 20, offset: Offset(0, -4)),
           ],
         ),
         child: SafeArea(
@@ -52,14 +54,14 @@ class ScaffoldWithNavBar extends StatelessWidget {
                 _NavItem(
                   icon: Icons.home_outlined,
                   selectedIcon: Icons.home_rounded,
-                  label: 'Home',
+                  label: l10n.navHome,
                   selected: current == 0,
                   onTap: () => _onTap(0),
                 ),
                 _NavItem(
                   icon: Icons.search_rounded,
                   selectedIcon: Icons.search_rounded,
-                  label: 'Search',
+                  label: l10n.navSearch,
                   selected: current == 1,
                   onTap: () => _onTap(1),
                 ),
@@ -67,14 +69,14 @@ class ScaffoldWithNavBar extends StatelessWidget {
                 _NavItem(
                   icon: Icons.assignment_outlined,
                   selectedIcon: Icons.assignment_rounded,
-                  label: 'My Reports',
+                  label: l10n.navMyReports,
                   selected: current == 2,
                   onTap: () => _onTap(2),
                 ),
                 _NavItem(
                   icon: Icons.person_outline_rounded,
                   selectedIcon: Icons.person_rounded,
-                  label: 'Profile',
+                  label: l10n.navProfile,
                   selected: current == 3,
                   onTap: () => _onTap(3),
                 ),
@@ -160,7 +162,7 @@ class _ReportButton extends StatelessWidget {
         child: PressableScale(
           child: Semantics(
             button: true,
-            label: 'Report an issue',
+            label: AppLocalizations.of(context).navReportAnIssue,
             child: Material(
               shape: const CircleBorder(),
               elevation: 6,

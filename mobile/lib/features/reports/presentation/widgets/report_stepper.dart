@@ -29,9 +29,9 @@ class ReportStepper extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: i <= currentStep ? AppColors.primary : AppColors.surface,
+                    color: i <= currentStep ? AppColors.primary : context.surfaceColor,
                     border: Border.all(
-                      color: i <= currentStep ? AppColors.primary : AppColors.border,
+                      color: i <= currentStep ? AppColors.primary : context.borderColor,
                       width: 2,
                     ),
                   ),
@@ -42,7 +42,7 @@ class ReportStepper extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: i == currentStep ? AppColors.onPrimary : AppColors.textSecondary,
+                            color: i == currentStep ? AppColors.onPrimary : context.textSecondaryColor,
                           ),
                         ),
                 ),
@@ -53,7 +53,7 @@ class ReportStepper extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: i == currentStep ? FontWeight.w800 : FontWeight.w500,
-                    color: i <= currentStep ? AppColors.primary : AppColors.textSecondary,
+                    color: i <= currentStep ? context.accentColor : context.textSecondaryColor,
                   ),
                 ),
               ],

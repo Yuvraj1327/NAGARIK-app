@@ -9,6 +9,7 @@ import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
@@ -39,9 +40,10 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'Profile'),
+      appBar: PrimaryAppBar(title: l10n.profTitle),
       drawer: const AppDrawer(activeRoute: '/profile'),
       body: user == null ? const _SignedOutView() : const _SignedInView(),
     );
@@ -53,6 +55,7 @@ class _SignedOutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -61,18 +64,18 @@ class _SignedOutView extends StatelessWidget {
           children: [
             const Icon(Icons.account_circle_outlined, size: 64),
             const SizedBox(height: AppSpacing.md),
-            Text("You're not logged in", style: Theme.of(context).textTheme.titleMedium),
+            Text(l10n.profNotLoggedIn, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Log in to submit reports and track their status.',
+              l10n.profLoginPrompt,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
-            AppButton(label: 'Log in', onPressed: () => context.push('/login')),
+            AppButton(label: l10n.profLogIn, onPressed: () => context.push('/login')),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'Create account',
+              label: l10n.profCreateAccount,
               variant: AppButtonVariant.outlined,
               onPressed: () => context.push('/signup'),
             ),
@@ -89,13 +92,14 @@ class _SignedInView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final l10n = AppLocalizations.of(context);
 
     return profileAsync.when(
-      loading: () => const LoadingView(message: 'Loading your profile…'),
+      loading: () => LoadingView(message: l10n.profLoadingProfile),
       error: (error, stackTrace) => ErrorView.forError(
         error,
         onRetry: () => ref.invalidate(currentUserProfileProvider),
-        fallbackMessage: 'Could not load your profile. Please try again.',
+        fallbackMessage: l10n.profLoadError,
       ),
       data: (profile) => ResponsiveCenter(
         child: ListView(
@@ -124,6 +128,8 @@ class _SignedInView extends ConsumerWidget {
                         Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
                         if (profile.email != null)
                           Text(profile.email!, style: Theme.of(context).textTheme.bodyMedium),
+                        if (profile.phoneOrNull != null)
+                          Text(profile.phoneOrNull!, style: Theme.of(context).textTheme.bodyMedium),
                       ],
                     ),
                   ),
@@ -132,59 +138,59 @@ class _SignedInView extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             const FadeSlideIn(delay: Duration(milliseconds: 60), child: _ReportStatsStrip()),
-            const SettingsSection(
-              title: 'My Activity',
-              tiles: [
+            SettingsSection(
+              title: l10n.profMyActivity,
+              tiles: const [
                 _MyReportsTile(),
                 _SavedReportsTile(),
               ],
             ),
             SettingsSection(
-              title: 'Settings',
+              title: l10n.profSettings,
               tiles: [
                 SettingsListTile(
                   icon: Icons.edit_outlined,
-                  title: 'Edit Profile',
+                  title: l10n.profEditProfile,
                   onTap: () => context.push('/profile/edit'),
                 ),
                 SettingsListTile(
                   icon: Icons.tune,
-                  title: 'Preferences',
+                  title: l10n.profPreferences,
                   onTap: () => context.push('/settings'),
                 ),
                 SettingsListTile(
                   icon: Icons.help_outline,
-                  title: 'Help & Support',
+                  title: l10n.setHelpSupport,
                   onTap: () => context.push('/help'),
                 ),
               ],
             ),
             SettingsSection(
-              title: 'Legal',
+              title: l10n.legalSection,
               tiles: [
                 SettingsListTile(
                   icon: Icons.privacy_tip_outlined,
-                  title: 'Privacy Policy',
+                  title: l10n.legalPrivacyPolicy,
                   onTap: () => context.push('/legal/privacy'),
                 ),
                 SettingsListTile(
                   icon: Icons.description_outlined,
-                  title: 'Terms & Conditions',
+                  title: l10n.legalTermsConditions,
                   onTap: () => context.push('/legal/terms'),
                 ),
                 SettingsListTile(
                   icon: Icons.info_outline,
-                  title: 'About NAGARIK',
+                  title: l10n.legalAboutNagarik,
                   onTap: () => context.push('/about'),
                 ),
               ],
             ),
             SettingsSection(
-              title: 'Account',
+              title: l10n.profAccount,
               tiles: [
                 SettingsListTile(
                   icon: Icons.logout,
-                  title: 'Logout',
+                  title: l10n.commonLogout,
                   isDestructive: true,
                   onTap: () => confirmAndLogout(context, ref),
                 ),
@@ -209,6 +215,7 @@ class _ReportStatsStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(reportStatsProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -221,16 +228,16 @@ class _ReportStatsStrip extends ConsumerWidget {
           error: (error, stackTrace) => ErrorView.forError(
             error,
             onRetry: () => ref.invalidate(reportStatsProvider),
-            fallbackMessage: 'Could not load your report stats.',
+            fallbackMessage: l10n.profStatsLoadError,
           ),
           data: (stats) => Row(
             children: [
-              Expanded(child: StatTile(value: stats.total, label: 'Total\nReports')),
+              Expanded(child: StatTile(value: stats.total, label: l10n.profStatTotalReports)),
               const _StatDivider(),
               Expanded(
                 child: StatTile(
                   value: stats.resolved,
-                  label: 'Resolved',
+                  label: l10n.profStatResolved,
                   color: AppColors.statusResolved,
                 ),
               ),
@@ -238,7 +245,7 @@ class _ReportStatsStrip extends ConsumerWidget {
               Expanded(
                 child: StatTile(
                   value: stats.inReview,
-                  label: 'In Review',
+                  label: l10n.profStatInReview,
                   color: AppColors.statusInReview,
                 ),
               ),
@@ -246,7 +253,7 @@ class _ReportStatsStrip extends ConsumerWidget {
               Expanded(
                 child: StatTile(
                   value: stats.submitted,
-                  label: 'Submitted',
+                  label: l10n.profStatSubmitted,
                   color: AppColors.statusSubmitted,
                 ),
               ),
@@ -274,7 +281,7 @@ class _MyReportsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsListTile(
       icon: Icons.history_outlined,
-      title: 'My Reports',
+      title: AppLocalizations.of(context).profMyReports,
       // My Reports is now also a bottom-nav tab (`/my-reports`) — this tile
       // just switches to that tab rather than pushing a second screen for
       // the same feature, same as Home's category shortcuts already do for
@@ -291,7 +298,7 @@ class _SavedReportsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsListTile(
       icon: Icons.bookmark_border,
-      title: 'Saved Reports',
+      title: AppLocalizations.of(context).profSavedReports,
       onTap: () => context.push('/profile/saved-reports'),
     );
   }

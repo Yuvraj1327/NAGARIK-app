@@ -1,3 +1,5 @@
+import 'package:nagarik/l10n/app_localizations.dart';
+
 /// Onboarding redesign: the optional age bracket asked on Step 4 — never a
 /// hard gate (the brief's "do not unnecessarily block the app" and "keep
 /// this step optional"), just a stored, self-reported bracket with no
@@ -9,5 +11,12 @@ enum AgeGroup {
   String get label => switch (this) {
         AgeGroup.eighteenOrOlder => '18 or older',
         AgeGroup.underEighteen => 'Under 18',
+      };
+}
+
+extension AgeGroupLocalization on AgeGroup {
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+        AgeGroup.eighteenOrOlder => l10n.onbAge18OrOlder,
+        AgeGroup.underEighteen => l10n.onbAgeUnder18,
       };
 }

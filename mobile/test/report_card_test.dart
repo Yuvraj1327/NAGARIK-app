@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +16,8 @@ void main() {
   testWidgets('ReportCard shows title, description, status, and location', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ReportCard(
             title: 'Road',
@@ -38,6 +41,8 @@ void main() {
     var tapped = false;
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ReportCard(
             title: 'Water',
@@ -60,6 +65,8 @@ void main() {
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ReportCard(
             title: 'Road',
@@ -80,6 +87,8 @@ void main() {
   testWidgets('ReportCard shows the reference id and date when given', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ReportCard(
             title: 'Road',
@@ -103,6 +112,8 @@ void main() {
   testWidgets('ReportCard shows a thumbnail when an image url is given', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ReportCard(
             title: 'Road',
@@ -124,6 +135,8 @@ void main() {
     for (final status in ReportStatus.values) {
       await tester.pumpWidget(
         MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: StatusBadge(status: status)),
         ),
       );

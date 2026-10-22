@@ -65,12 +65,15 @@ def _make_token(
     email: str = "citizen@example.com",
     full_name: str | None = "Asha Rao",
     avatar_path: str | None = None,
+    phone: str | None = None,
 ) -> str:
     user_metadata = {}
     if full_name:
         user_metadata["full_name"] = full_name
     if avatar_path:
         user_metadata["avatar_path"] = avatar_path
+    if phone:
+        user_metadata["phone"] = phone
     payload = {
         "sub": sub,
         "email": email,
@@ -92,7 +95,17 @@ def test_get_my_profile_returns_claims_from_a_valid_token():
         "email": "citizen@example.com",
         "full_name": "Asha Rao",
         "avatar_url": None,
+        "phone": None,
     }
+
+
+def test_get_my_profile_returns_phone_from_user_metadata():
+    token = _make_token(phone="+919876543210")
+
+    response = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json()["phone"] == "+919876543210"
 
 
 def test_get_my_profile_without_full_name_metadata():

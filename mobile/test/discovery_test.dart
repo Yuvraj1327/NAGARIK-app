@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,7 +61,9 @@ void main() {
     Widget wrap(Widget child, {required List<Override> overrides}) {
       return ProviderScope(
         overrides: overrides,
-        child: MaterialApp(home: Scaffold(body: child)),
+        child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,home: Scaffold(body: child)),
       );
     }
 
@@ -119,6 +122,8 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: CategoryGrid(onCategoryTap: (category) => tapped = category),
           ),
@@ -158,6 +163,8 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: ReportMap(
               markers: markers,

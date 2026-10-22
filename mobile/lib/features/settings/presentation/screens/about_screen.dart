@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:nagarik/shared/widgets/logo.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/static_content_screen.dart';
 
 /// Profile/Settings -> About NAGARIK.
@@ -15,26 +16,22 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const StaticContentScreen(
-      title: 'About NAGARIK',
-      header: Center(child: Padding(padding: EdgeInsets.only(bottom: 8), child: Logo(size: 88))),
+    final l10n = AppLocalizations.of(context);
+    return StaticContentScreen(
+      title: l10n.legalAboutNagarik,
+      header: const Center(child: Padding(padding: EdgeInsets.only(bottom: 8), child: Logo(size: 88))),
       sections: [
         StaticContentSection(
-          heading: 'NAGARIK — A Civic Good Initiative',
-          body: 'NAGARIK gives citizens a simple way to report civic issues — '
-              'potholes, broken streetlights, sanitation problems, water and '
-              'electricity faults, safety hazards, and more — and to track '
-              'each report from Submitted through In Review to Resolved.',
+          heading: l10n.legalAboutHeading,
+          body: l10n.legalAboutBody,
         ),
         StaticContentSection(
-          heading: 'How it works',
-          body: 'Report an issue with a description, category, location, and '
-              'photos. Browse and search reports from your city or nearby. '
-              'Follow your own reports\' status from your Profile.',
+          heading: l10n.legalAboutHowHeading,
+          body: l10n.legalAboutHowBody,
         ),
         StaticContentSection(
-          heading: 'Version',
-          body: 'NAGARIK 0.1.0',
+          heading: l10n.legalVersionHeading,
+          body: l10n.legalVersionBody,
         ),
       ],
     );

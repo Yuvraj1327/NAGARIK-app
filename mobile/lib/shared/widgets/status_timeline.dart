@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/reports/domain/report_timeline.dart';
@@ -40,6 +41,15 @@ class _TimelineRow extends StatelessWidget {
 
   static const double _dotSize = 24;
 
+  /// Stage labels come from the pure-Dart `timelineStagesForStatus`; map the
+  /// known English ones to localized text, leaving anything else untouched.
+  static String _localizedStageLabel(AppLocalizations l10n, String label) => switch (label) {
+        'Report Submitted' => l10n.repTimelineSubmitted,
+        'Under Review' => l10n.repTimelineUnderReview,
+        'Resolved' => l10n.repStatusResolved,
+        _ => label,
+      };
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -66,7 +76,7 @@ class _TimelineRow extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.lg, top: 2),
               child: Text(
-                stage.label,
+                _localizedStageLabel(AppLocalizations.of(context), stage.label),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: stage.state == TimelineStageState.current
                           ? FontWeight.w700

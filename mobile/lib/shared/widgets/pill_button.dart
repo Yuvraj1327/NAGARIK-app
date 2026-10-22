@@ -30,13 +30,13 @@ class PillButton extends StatelessWidget {
 
     final foreground = switch (variant) {
       PillButtonVariant.primary => AppColors.onPrimary,
-      PillButtonVariant.outlined => AppColors.textPrimary,
-      PillButtonVariant.soft => AppColors.textPrimary,
+      PillButtonVariant.outlined => context.textPrimaryColor,
+      PillButtonVariant.soft => context.textPrimaryColor,
     };
     final background = switch (variant) {
       PillButtonVariant.primary => AppColors.primary,
-      PillButtonVariant.outlined => AppColors.surface,
-      PillButtonVariant.soft => AppColors.primaryLight,
+      PillButtonVariant.outlined => context.surfaceColor,
+      PillButtonVariant.soft => context.tintColor,
     };
 
     final child = isLoading
@@ -67,7 +67,7 @@ class PillButton extends StatelessWidget {
             shadowColor: Colors.transparent,
             shape: StadiumBorder(
               side: variant == PillButtonVariant.outlined
-                  ? const BorderSide(color: AppColors.border, width: 2)
+                  ? BorderSide(color: context.borderColor, width: 2)
                   : BorderSide.none,
             ),
           ),

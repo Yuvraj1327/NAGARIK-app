@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/profile_avatar.dart';
 
 /// The small circular avatar in the top-right of the main tabs' headers —
@@ -17,7 +18,7 @@ class ProfileAvatarButton extends ConsumerWidget {
       padding: const EdgeInsets.only(right: 12),
       child: Semantics(
         button: true,
-        label: 'Open profile',
+        label: AppLocalizations.of(context).profOpenProfile,
         child: GestureDetector(
           onTap: () => context.go('/profile'),
           child: ProfileAvatar(

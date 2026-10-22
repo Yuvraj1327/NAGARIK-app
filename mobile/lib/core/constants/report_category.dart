@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/l10n/app_localizations.dart';
+
 /// The fixed set of civic-issue categories a report can belong to, per the
 /// approved NAGARIK scope. Adding a category here is the only change
 /// needed for it to show up everywhere (create-report step, feed cards,
@@ -45,5 +47,17 @@ enum ReportCategory {
         ReportCategory.electricity => 'assets/images/category_electricity.jpg',
         ReportCategory.safety => 'assets/images/category_safety.jpg',
         ReportCategory.other => null,
+      };
+}
+
+extension ReportCategoryL10n on ReportCategory {
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+        ReportCategory.road => l10n.repCatRoad,
+        ReportCategory.streetlight => l10n.repCatStreetlight,
+        ReportCategory.sanitation => l10n.repCatSanitation,
+        ReportCategory.water => l10n.repCatWater,
+        ReportCategory.electricity => l10n.repCatElectricity,
+        ReportCategory.safety => l10n.repCatSafety,
+        ReportCategory.other => l10n.repCatOther,
       };
 }

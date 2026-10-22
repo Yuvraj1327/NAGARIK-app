@@ -6,6 +6,7 @@ import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/discovery/presentation/providers/discovery_providers.dart';
 import 'package:nagarik/features/reports/data/location_service.dart';
 import 'package:nagarik/features/reports/presentation/providers/reports_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/app_card.dart';
 
 /// Home's "Location access" card. Driven entirely by the real
@@ -20,16 +21,17 @@ class LocationAccessCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final locationAsync = ref.watch(homeLocationProvider);
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: locationAsync.when(
-        loading: () => const _CardRow(
+        loading: () => _CardRow(
           icon: Icons.location_searching_rounded,
-          title: 'Finding your location…',
-          subtitle: 'Looking for civic issues near you.',
-          trailing: SizedBox(
+          title: l10n.homeLocFinding,
+          subtitle: l10n.homeLocLooking,
+          trailing: const SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(strokeWidth: 2),
@@ -41,10 +43,10 @@ class LocationAccessCard extends ConsumerWidget {
               exception != null && (exception.needsAppSettings || exception.needsLocationServices);
           return _CardRow(
             icon: Icons.location_on_outlined,
-            title: 'Location access',
-            subtitle: exception?.message ?? 'Enable location to see issues near you.',
+            title: l10n.homeLocAccess,
+            subtitle: exception?.message ?? l10n.homeLocEnablePrompt,
             trailing: _CardButton(
-              label: needsSettings ? 'Settings' : 'Enable',
+              label: needsSettings ? l10n.homeLocSettings : l10n.homeLocEnable,
               onPressed: () {
                 final service = ref.read(locationServiceProvider);
                 if (exception != null && exception.needsAppSettings) {
@@ -63,9 +65,9 @@ class LocationAccessCard extends ConsumerWidget {
           title: location.city ??
               '${location.position.latitude.toStringAsFixed(3)}, '
                   '${location.position.longitude.toStringAsFixed(3)}',
-          subtitle: 'Showing issues near your current location.',
+          subtitle: l10n.homeLocShowing,
           trailing: IconButton(
-            tooltip: 'Refresh location',
+            tooltip: l10n.homeLocRefresh,
             icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
             onPressed: () => ref.invalidate(homeLocationProvider),
           ),

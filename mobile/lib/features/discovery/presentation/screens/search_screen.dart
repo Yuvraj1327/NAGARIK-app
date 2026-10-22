@@ -16,6 +16,7 @@ import 'package:nagarik/features/reports/presentation/providers/reports_provider
 import 'package:nagarik/features/reports/presentation/widgets/report_card.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_map.dart';
 import 'package:nagarik/features/reports/presentation/widgets/report_marker_preview_sheet.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_search_field.dart';
 import 'package:nagarik/shared/widgets/empty_view.dart';
@@ -194,28 +195,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Widget _buildFilters(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSearchField(
           controller: _searchController,
-          hintText: 'Search by keyword, e.g. "pothole"',
+          hintText: l10n.searchKeywordHint,
           onSubmitted: (_) => _runSearch(),
           onClear: _clearKeyword,
         ),
         const SizedBox(height: AppSpacing.md),
-        const DiscoverySectionHeader(title: 'Category'),
+        DiscoverySectionHeader(title: l10n.searchCategory),
         _ChipRow(
           children: [
             SelectableChip(
-              label: 'All',
+              label: l10n.searchAll,
               icon: Icons.grid_view_rounded,
               selected: _category == null,
               onTap: () => _selectCategory(null),
             ),
             for (final category in ReportCategory.values)
               SelectableChip(
-                label: category.label,
+                label: category.localizedLabel(l10n),
                 icon: category.icon,
                 selected: _category == category,
                 onTap: () => _selectCategory(category),
@@ -223,29 +225,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        const DiscoverySectionHeader(title: 'Status'),
+        DiscoverySectionHeader(title: l10n.searchStatus),
         _ChipRow(
           children: [
             SelectableChip(
-              label: 'Any status',
+              label: l10n.searchAnyStatus,
               selected: _status == null,
               onTap: () => _selectStatus(null),
             ),
             for (final status in ReportStatus.values)
               SelectableChip(
-                label: status.label,
+                label: status.localizedLabel(l10n),
                 selected: _status == status,
                 onTap: () => _selectStatus(status),
               ),
           ],
         ),
         const SizedBox(height: AppSpacing.sm + 4),
-        Text('Location', style: Theme.of(context).textTheme.titleLarge),
+        Text(l10n.searchLocation, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.sm),
         Align(
           alignment: Alignment.centerLeft,
           child: SelectableChip(
-            label: 'Near Me',
+            label: l10n.searchNearMe,
             icon: Icons.my_location_outlined,
             selected: _nearby,
             isLoading: _isFetchingLocation,
@@ -258,7 +260,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: _LocationField(
                 controller: _cityController,
-                hintText: 'City',
+                hintText: l10n.searchCity,
                 icon: Icons.location_city_outlined,
                 maxLength: 100,
                 onSubmitted: _runSearch,
@@ -268,7 +270,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: _LocationField(
                 controller: _pinController,
-                hintText: 'PIN code',
+                hintText: l10n.searchPinCode,
                 icon: Icons.pin_drop_outlined,
                 maxLength: 6,
                 keyboardType: TextInputType.number,
@@ -278,24 +280,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        PillButton(label: 'Search', onPressed: _runSearch),
+        PillButton(label: l10n.searchSearchButton, onPressed: _runSearch),
       ],
     );
   }
 
   Widget _buildViewToggle() {
+    final l10n = AppLocalizations.of(context);
     return SegmentedButton<_ResultsView>(
       showSelectedIcon: false,
-      segments: const [
+      segments: [
         ButtonSegment(
           value: _ResultsView.list,
-          label: Text('List'),
-          icon: Icon(Icons.view_list_outlined),
+          label: Text(l10n.searchViewList),
+          icon: const Icon(Icons.view_list_outlined),
         ),
         ButtonSegment(
           value: _ResultsView.map,
-          label: Text('Map'),
-          icon: Icon(Icons.map_outlined),
+          label: Text(l10n.searchViewMap),
+          icon: const Icon(Icons.map_outlined),
         ),
       ],
       selected: {_view},
@@ -305,6 +308,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final nearbyCenter = _nearby && _latitude != null && _longitude != null
         ? LatLng(_latitude!, _longitude!)
         : null;
@@ -322,7 +326,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 Expanded(child: _buildViewToggle()),
                 const SizedBox(width: AppSpacing.sm),
                 SelectableChip(
-                  label: 'Filters',
+                  label: l10n.searchFilters,
                   icon: Icons.tune_rounded,
                   selected: showFilters,
                   onTap: _hasSearched
@@ -380,7 +384,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'Search'),
+      appBar: PrimaryAppBar(title: l10n.navSearch),
       drawer: const AppDrawer(activeRoute: '/search'),
       body: ResponsiveCenter(child: body),
     );
@@ -485,13 +489,14 @@ class _SearchResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (!hasSearched) {
-      return const SizedBox(
+      return SizedBox(
         height: 260,
         child: EmptyView(
           icon: Icons.travel_explore_outlined,
-          title: 'Search for civic reports',
-          message: 'Find reports by keyword, category, status, city, PIN code, or near you.',
+          title: l10n.searchPromptTitle,
+          message: l10n.searchPromptMessage,
         ),
       );
     }
@@ -512,6 +517,7 @@ class _ListResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return FutureBuilder<ReportsPage>(
       future: resultsFuture,
       builder: (context, snapshot) {
@@ -523,7 +529,7 @@ class _ListResults extends StatelessWidget {
             height: 260,
             child: ErrorView.forError(
               snapshot.error!,
-              fallbackMessage: 'Could not search reports. Please try again.',
+              fallbackMessage: l10n.searchError,
             ),
           );
         }
@@ -537,7 +543,7 @@ class _ListResults extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              page.total == 1 ? '1 report found' : '${page.total} reports found',
+              l10n.searchReportsFound(page.total),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.sm + 4),
@@ -545,7 +551,7 @@ class _ListResults extends StatelessWidget {
               FadeSlideIn(
                 delay: Duration(milliseconds: 30 * index),
                 child: ReportCard(
-                  title: page.items[index].category.label,
+                  title: page.items[index].category.localizedLabel(l10n),
                   description: page.items[index].description,
                   category: page.items[index].category,
                   status: page.items[index].status,
@@ -584,25 +590,26 @@ class _MapResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return FutureBuilder<List<ReportMarker>>(
       future: markersFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingView(message: 'Loading map…');
+          return LoadingView(message: l10n.searchLoadingMap);
         }
         if (snapshot.hasError) {
           return ErrorView.forError(
             snapshot.error!,
-            fallbackMessage: 'Could not load the map. Please try again.',
+            fallbackMessage: l10n.searchMapError,
           );
         }
 
         final markers = snapshot.data!;
         if (markers.isEmpty) {
-          return const EmptyView(
+          return EmptyView(
             icon: Icons.map_outlined,
-            title: 'No matching reports to show on the map',
-            message: 'Try a different keyword or loosen your filters.',
+            title: l10n.searchMapEmptyTitle,
+            message: l10n.searchMapEmptyMessage,
           );
         }
 

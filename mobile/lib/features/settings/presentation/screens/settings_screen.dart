@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nagarik/core/localization/language_preference.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/core/theme/theme_preference.dart';
 import 'package:nagarik/features/auth/presentation/widgets/confirm_logout.dart';
+import 'package:nagarik/features/onboarding/domain/onboarding_language.dart';
 import 'package:nagarik/features/profile/presentation/providers/profile_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/error_view.dart';
 import 'package:nagarik/shared/widgets/loading_view.dart';
@@ -26,15 +29,17 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final themePreference = ref.watch(themePreferenceProvider);
+    final language = ref.watch(languageProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: const PrimaryAppBar(title: 'Settings'),
+      appBar: PrimaryAppBar(title: l10n.setTitle),
       body: ResponsiveCenter(
         child: FadeSlideIn(
           child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
-          const SectionHeader(title: 'Account information'),
+          SectionHeader(title: l10n.setAccountInformation),
           profileAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -43,7 +48,7 @@ class SettingsScreen extends ConsumerWidget {
             error: (error, stackTrace) => ErrorView.forError(
               error,
               onRetry: () => ref.invalidate(currentUserProfileProvider),
-              fallbackMessage: 'Could not load your account information.',
+              fallbackMessage: l10n.setAccountLoadError,
             ),
             data: (profile) => SettingsSection(
               title: null,
@@ -54,10 +59,17 @@ class SettingsScreen extends ConsumerWidget {
                   subtitle: profile.email,
                   onTap: () => context.push('/profile/edit'),
                 ),
+                if (profile.phoneOrNull != null)
+                  SettingsListTile(
+                    icon: Icons.phone_outlined,
+                    title: profile.phoneOrNull!,
+                    subtitle: l10n.setMobileNumber,
+                    onTap: () => context.push('/profile/edit'),
+                  ),
               ],
             ),
           ),
-          const SectionHeader(title: 'Theme preference'),
+          SectionHeader(title: l10n.setThemePreference),
           SettingsSection(
             title: null,
             tiles: [
@@ -68,11 +80,26 @@ class SettingsScreen extends ConsumerWidget {
                     AppThemePreference.light => Icons.light_mode_outlined,
                     AppThemePreference.dark => Icons.dark_mode_outlined,
                   },
-                  title: preference.label,
+                  title: preference.localizedLabel(l10n),
                   trailing: preference == themePreference
                       ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
                       : null,
                   onTap: () => ref.read(themePreferenceProvider.notifier).setPreference(preference),
+                ),
+            ],
+          ),
+          SectionHeader(title: l10n.setLanguage),
+          SettingsSection(
+            title: null,
+            tiles: [
+              for (final option in OnboardingLanguage.values)
+                SettingsListTile(
+                  icon: Icons.language,
+                  title: option.label,
+                  trailing: option == language
+                      ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+                      : null,
+                  onTap: () => ref.read(languageProvider.notifier).setLanguage(option),
                 ),
             ],
           ),
@@ -81,22 +108,22 @@ class SettingsScreen extends ConsumerWidget {
             tiles: [
               SettingsListTile(
                 icon: Icons.help_outline,
-                title: 'Help & Support',
+                title: l10n.setHelpSupport,
                 onTap: () => context.push('/help'),
               ),
               SettingsListTile(
                 icon: Icons.privacy_tip_outlined,
-                title: 'Privacy Policy',
+                title: l10n.legalPrivacyPolicy,
                 onTap: () => context.push('/legal/privacy'),
               ),
               SettingsListTile(
                 icon: Icons.description_outlined,
-                title: 'Terms & Conditions',
+                title: l10n.legalTermsConditions,
                 onTap: () => context.push('/legal/terms'),
               ),
               SettingsListTile(
                 icon: Icons.info_outline,
-                title: 'About NAGARIK',
+                title: l10n.legalAboutNagarik,
                 onTap: () => context.push('/about'),
               ),
             ],
@@ -107,7 +134,7 @@ class SettingsScreen extends ConsumerWidget {
             tiles: [
               SettingsListTile(
                 icon: Icons.logout,
-                title: 'Logout',
+                title: l10n.commonLogout,
                 isDestructive: true,
                 onTap: () => confirmAndLogout(context, ref),
               ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:nagarik/l10n/app_localizations.dart';
+
 /// A Home-screen section title ("Nearby Issues", "Explore by Category",
 /// "Recent Reports") with an optional trailing "See all" action.
 ///
@@ -15,6 +17,7 @@ class DiscoverySectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -25,7 +28,7 @@ class DiscoverySectionHeader extends StatelessWidget {
         if (onSeeAll != null)
           TextButton(
             onPressed: onSeeAll,
-            child: const Text('See all', style: TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(l10n.homeSeeAll, style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
       ],
     );

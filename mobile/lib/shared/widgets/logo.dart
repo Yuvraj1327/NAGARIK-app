@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 /// logo's aspect ratio can never be stretched or cropped no matter what
 /// [size] a caller passes.
 class Logo extends StatelessWidget {
-  const Logo({super.key, this.size = 96, this.borderRadius});
+  const Logo({super.key, this.size = 96, this.borderRadius, this.transparent = false});
 
   /// Both the width and height of the box the logo is drawn in.
   final double size;
@@ -22,14 +22,19 @@ class Logo extends StatelessWidget {
   /// softened, icon-like mark (e.g. a small app-bar mark).
   final BorderRadius? borderRadius;
 
+  /// Use the background-free, tightly cropped variant (Home app bar, drawer)
+  /// instead of the artwork's own light square.
+  final bool transparent;
+
   /// Exposed so any future platform app-icon tooling can point at the same
   /// single source file this widget uses.
   static const String assetPath = 'assets/images/nagarik_logo.png';
+  static const String transparentAssetPath = 'assets/images/nagarik_logo_transparent.png';
 
   @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      assetPath,
+      transparent ? transparentAssetPath : assetPath,
       width: size,
       height: size,
       fit: BoxFit.contain,

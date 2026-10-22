@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 
 /// Shared "Logout" confirmation, used by both the Profile screen's ACCOUNT
 /// section and the Settings screen — one place for the copy/behavior so
@@ -15,19 +16,20 @@ import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart
 /// change on its own and returns the app to `/welcome` (NAGARIK Theme
 /// upgrade — was `/login`) — no navigation call needed here.
 Future<void> confirmAndLogout(BuildContext context, WidgetRef ref) async {
+  final l10n = AppLocalizations.of(context);
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: const Text('Log out?'),
-      content: const Text("You'll need to log in again to submit or view your reports."),
+      title: Text(l10n.authLogoutTitle),
+      content: Text(l10n.authLogoutBody),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l10n.authCancel),
         ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Log out'),
+          child: Text(l10n.authLogout),
         ),
       ],
     ),

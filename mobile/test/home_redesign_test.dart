@@ -1,3 +1,4 @@
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +16,9 @@ import 'package:nagarik/shared/widgets/selectable_chip.dart';
 void main() {
   Widget wrap(Widget child, {List<Override> overrides = const []}) => ProviderScope(
         overrides: overrides,
-        child: MaterialApp(home: Scaffold(body: child)),
+        child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,home: Scaffold(body: child)),
       );
 
   group('LocationAccessCard', () {

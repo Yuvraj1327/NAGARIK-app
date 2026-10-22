@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
 import 'package:nagarik/shared/widgets/app_text_field.dart';
@@ -31,6 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isSubmitting = false;
 
   Future<void> _handleLogin() async {
+    final l10n = AppLocalizations.of(context);
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isSubmitting = true);
@@ -45,7 +47,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again.')),
+        SnackBar(content: Text(l10n.authErrorGeneric)),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -62,6 +64,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // fold or, on a short device, so tall it fights the keyboard once a
     // field is focused.
     final heroHeight = (MediaQuery.of(context).size.height * 0.34).clamp(220.0, 320.0);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -117,10 +120,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             delay: const Duration(milliseconds: 80),
                             child: Column(
                               children: [
-                                const Center(child: Logo(size: 56)),
+                                const Center(child: Logo(size: 76, transparent: true)),
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(
-                                  'A Civic Good Initiative',
+                                  l10n.authCivicGoodTagline,
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
@@ -131,16 +134,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 140),
                             child: AppTextField(
-                              label: 'Email',
+                              label: l10n.authEmail,
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               prefixIcon: Icons.email_outlined,
                               textInputAction: TextInputAction.next,
                               validator: (value) {
                                 final email = value?.trim() ?? '';
-                                if (email.isEmpty) return 'Email is required.';
+                                if (email.isEmpty) return l10n.authEmailRequired;
                                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                                  return 'Enter a valid email address.';
+                                  return l10n.authEmailInvalid;
                                 }
                                 return null;
                               },
@@ -150,14 +153,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 180),
                             child: AppTextField(
-                              label: 'Password',
+                              label: l10n.authPassword,
                               controller: _passwordController,
                               obscureText: true,
                               prefixIcon: Icons.lock_outline,
                               textInputAction: TextInputAction.done,
                               validator: (value) {
                                 if (value == null || value.length < 6) {
-                                  return 'Password must be at least 6 characters.';
+                                  return l10n.authPasswordTooShort;
                                 }
                                 return null;
                               },
@@ -167,7 +170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           FadeSlideIn(
                             delay: const Duration(milliseconds: 220),
                             child: AppButton(
-                              label: 'Log in',
+                              label: l10n.authLogIn,
                               isLoading: _isSubmitting,
                               onPressed: _handleLogin,
                             ),
@@ -178,10 +181,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text("Don't have an account?"),
+                                Text(l10n.authNoAccount),
                                 TextButton(
                                   onPressed: () => context.push('/signup'),
-                                  child: const Text('Register'),
+                                  child: Text(l10n.authRegister),
                                 ),
                               ],
                             ),

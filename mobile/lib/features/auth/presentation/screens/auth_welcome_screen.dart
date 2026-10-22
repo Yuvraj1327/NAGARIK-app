@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
@@ -6,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 import 'package:nagarik/core/theme/app_colors.dart';
 import 'package:nagarik/core/theme/app_spacing.dart';
 import 'package:nagarik/features/auth/presentation/providers/auth_providers.dart';
+import 'package:nagarik/l10n/app_localizations.dart';
 import 'package:nagarik/shared/widgets/animations/fade_slide_in.dart';
 import 'package:nagarik/shared/widgets/animations/pressable_scale.dart';
 import 'package:nagarik/shared/widgets/app_button.dart';
@@ -39,6 +41,7 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
   bool _isGoogleLoading = false;
 
   Future<void> _handleGoogleSignIn() async {
+    final l10n = AppLocalizations.of(context);
     setState(() => _isGoogleLoading = true);
     try {
       await ref.read(authRepositoryProvider).signInWithGoogle();
@@ -50,10 +53,24 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
     } on AuthException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
-    } catch (_) {
+    } on PlatformException catch (error) {
+      // Raised by the native Google Sign-In SDK (e.g. `ApiException: 10` =
+      // package name/SHA-1/client ID mismatch). Logged so the real cause is
+      // visible instead of being swallowed by the generic message below.
+      debugPrint('Google sign-in failed: ${error.code} ${error.message}');
+      if (!mounted) return;
+      final details = '${error.code} ${error.message}';
+      final message = details.contains('network_error')
+          ? l10n.authErrorNetwork
+          : details.contains('ApiException: 10') || details.contains('12500')
+              ? l10n.authErrorGoogleConfig
+              : l10n.authErrorGoogleFailed;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      debugPrint('Google sign-in failed: $error');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not sign in with Google. Please try again.')),
+        SnackBar(content: Text(l10n.authErrorGoogleFailed)),
       );
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
@@ -62,6 +79,7 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.textPrimary,
       body: Stack(
@@ -89,10 +107,10 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x0012213A),
-                  Color(0x3312213A),
-                  Color(0xB312213A),
-                  Color(0xF012213A),
+                  Color(0x000F1F3D),
+                  Color(0x330F1F3D),
+                  Color(0xB30F1F3D),
+                  Color(0xF00F1F3D),
                 ],
                 stops: [0.0, 0.42, 0.78, 1.0],
               ),
@@ -113,7 +131,7 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                     offset: const Offset(0, -0.3),
                     child: Row(
                       children: [
-                        const Logo(size: 30),
+                        const Logo(size: 40, transparent: true),
                         const SizedBox(width: AppSpacing.xs),
                         const Text(
                           'NAGARIK',
@@ -134,10 +152,10 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                     children: [
                       FadeSlideIn(
                         delay: const Duration(milliseconds: 160),
-                        child: const Text(
-                          'A CIVIC GOOD INITIATIVE',
-                          style: TextStyle(
-                            color: AppColors.accentTeal,
+                        child: Text(
+                          l10n.authCivicGoodTag,
+                          style: const TextStyle(
+                            color: AppColors.accent,
                             fontWeight: FontWeight.w800,
                             fontSize: 12,
                             letterSpacing: 2.2,
@@ -147,9 +165,9 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       FadeSlideIn(
                         delay: const Duration(milliseconds: 190),
-                        child: const Text(
-                          'See it. Report it.\nGet it fixed.',
-                          style: TextStyle(
+                        child: Text(
+                          l10n.authHeroTitle,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 32,
@@ -163,9 +181,7 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                       FadeSlideIn(
                         delay: const Duration(milliseconds: 220),
                         child: Text(
-                          'Report roads, streetlights, sanitation, water, electricity '
-                          'and safety issues in your area — then track every one until '
-                          "it's resolved.",
+                          l10n.authHeroBody,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.88),
                             fontSize: 14,
@@ -178,7 +194,7 @@ class _AuthWelcomeScreenState extends ConsumerState<AuthWelcomeScreen> {
                       FadeSlideIn(
                         delay: const Duration(milliseconds: 260),
                         child: AppButton(
-                          label: 'Log In',
+                          label: l10n.authLogInButton,
                           onPressed: () => context.push('/login'),
                         ),
                       ),
@@ -214,6 +230,7 @@ class _GoogleSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PressableScale(
       enabled: onPressed != null,
       child: SizedBox(
@@ -226,7 +243,7 @@ class _GoogleSignInButton extends StatelessWidget {
             foregroundColor: AppColors.textPrimary,
             disabledBackgroundColor: AppColors.surface,
             elevation: 2,
-            shadowColor: const Color(0x3312213A),
+            shadowColor: const Color(0x330F1F3D),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
           ),
           child: isLoading
@@ -257,9 +274,9 @@ class _GoogleSignInButton extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    const Text(
-                      'Continue with Google',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    Text(
+                      l10n.authContinueWithGoogle,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
